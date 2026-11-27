@@ -285,6 +285,71 @@ class StudioHandler(SimpleHTTPRequestHandler):
             t.start()
             self.send_json({"ok": True, "total": len(new_panos)})
 
+        elif parsed.path == "/api/trim-last":
+            if download_status["active"]:
+                return self.send_json({"ok": False, "error": "A download or processing operation is currently running."}, 409)
+
+            tour_name = payload.get("name", "")
+            t_path = os.path.abspath(os.path.join(TOURS_DIR, tour_name))
+            if os.path.commonpath([TOURS_DIR, t_path]) != os.path.abspath(TOURS_DIR):
+                return self.send_json({"ok": False, "error": "Invalid tour name."}, 400)
+
+            json_file = os.path.join(t_path, "tour_data.json")
+            if not os.path.isdir(t_path) or not os.path.isfile(json_file):
+                return self.send_json({"ok": False, "error": "Tour not found."}, 404)
+
+            try:
+                with open(json_file, "r", encoding="utf-8") as f:
+                    tour_data = json.load(f)
+            except (json.JSONDecodeError, OSError) as e:
+                return self.send_json({"ok": False, "error": f"Could not read tour data: {str(e)}"}, 500)
+
+            if not isinstance(tour_data, list) or len(tour_data) <= 1:
+                return self.send_json({"ok": False, "error": "Cannot trim the last image. Tours must keep at least one image."}, 400)
+
+            last_entry = tour_data[-1]
+            filename = last_entry.get("file") if isinstance(last_entry, dict) else None
+            if not filename or os.path.basename(filename) != filename:
+                return self.send_json({"ok": False, "error": "The final panorama has an invalid file reference."}, 500)
+
+            filepath = os.path.join(t_path, filename)
+            if not os.path.isfile(filepath):
+                return self.send_json({"ok": False, "error": f"Final panorama file not found: {filename}"}, 404)
+
+            reduced_data = tour_data[:-1]
+            temp_json = json_file + ".trim.tmp"
+            try:
+                with open(temp_json, "w", encoding="utf-8") as f:
+                    json.dump(reduced_data, f, indent=2)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(temp_json, json_file)
+            except OSError as e:
+                if os.path.exists(temp_json):
+                    os.remove(temp_json)
+                return self.send_json({"ok": False, "error": f"Could not update tour data: {str(e)}"}, 500)
+
+            try:
+                os.remove(filepath)
+            except OSError as e:
+                # Restore the JSON atomically if the on-disk image could not be removed.
+                restore_temp = json_file + ".restore.tmp"
+                try:
+                    with open(restore_temp, "w", encoding="utf-8") as f:
+                        json.dump(tour_data, f, indent=2)
+                        f.flush()
+                        os.fsync(f.fileno())
+                    os.replace(restore_temp, json_file)
+                except OSError:
+                    pass
+                return self.send_json({"ok": False, "error": f"Could not delete the final panorama: {str(e)}"}, 500)
+
+            self.send_json({
+                "ok": True,
+                "removed": filename,
+                "count": len(reduced_data)
+            })
+
         elif parsed.path == "/api/rename":
             old_name = payload.get("old_name", "")
             new_name = sanitize_folder_name(payload.get("new_name", ""))

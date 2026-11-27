@@ -201,6 +201,7 @@ function renderTours(tours) {
             <div class="tour-actions">
                 <button class="btn primary small" onclick="openViewer('${t.name}')">Open Viewer</button>
                 <button class="btn secondary small" onclick="extendTour('${t.name}')">Extend (+)</button>
+                <button class="btn secondary small" onclick="trimLastTour('${t.name}', ${t.count})" ${t.count <= 1 ? 'disabled title="Tours must keep at least one image"' : ''}>Trim Last (-1)</button>
                 <button class="btn secondary small" onclick="renameTour('${t.name}')">Rename</button>
                 <button class="btn danger small" onclick="deleteTour('${t.name}')">Delete</button>
             </div>
@@ -267,4 +268,28 @@ async function deleteTour(name) {
     const data = await res.json();
     if (!data.ok) alert(data.error || "Delete failed.");
     else loadTours();
+}
+
+async function trimLastTour(name, count) {
+    if (count <= 1) {
+        alert("Cannot trim the last image. Tours must keep at least one image.");
+        return;
+    }
+    if (!confirm(`Remove the final panorama image from "${name}"?`)) return;
+
+    try {
+        const res = await fetch('/api/trim-last', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        const data = await res.json();
+        if (!data.ok) {
+            alert(data.error || "Could not trim the last image.");
+        } else {
+            loadTours();
+        }
+    } catch (err) {
+        alert("Server error.");
+    }
 }

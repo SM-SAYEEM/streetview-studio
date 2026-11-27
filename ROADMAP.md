@@ -17,7 +17,7 @@
     3. `zen_mode_timeout_ms`: Viewer auto-hide HUD delay (default: `5000`).
     4. `default_zoom_level`: Panorama download quality (`5` = Ultra 13K, `4` = High ~6K, `3` = Medium ~3K).
 
-- [ ] **Task 1.2: One-Click "Remove Last Image" (`POST /api/trim-last`)**
+- [x] **Task 1.2: One-Click "Remove Last Image" (`POST /api/trim-last`)**
   - Add a **"Trim Last (-1)"** button on each tour card in the dashboard (`studio/index.html`, `studio/studio.js`) and a `/api/trim-last` endpoint in `server.py`.
   - Safely deletes the final panorama file on disk and pops the last entry from `tour_data.json` (preventing deletion if only 1 image remains).
 

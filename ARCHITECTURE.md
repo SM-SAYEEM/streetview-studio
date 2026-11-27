@@ -54,6 +54,7 @@ StreetView_Studio_v2/               # Portable root folder (safe to rename/move 
 - `POST /api/download`: Downloads `zoom=5` panoramas in a daemon thread and flushes `tour_data.json` incrementally after each image.
 - `GET /api/status`: Exposes live background worker progress (`active`, `current`, `total`, `message`).
 - `POST /api/extend`: Appends panoramas forward from the last entry in `tour_data.json` using a numeric limit and an optional `end_link` for junction steering.
+- `POST /api/trim-last`: Removes the final panorama entry and its on-disk image from a tour. Refuses to trim tours with only one remaining image and rejects trimming while a background operation is active.
 - `POST /api/rename` & `POST /api/delete`: Renames or deletes tour folders inside `tours/`.
 
 ## 6. Implemented Viewer Engine (`studio/viewer.js`)
