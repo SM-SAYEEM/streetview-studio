@@ -1,52 +1,63 @@
-# StreetView Studio v2.0 — Complete System Architecture & AI Handoff Guide
-**Author / Creator:** Md Sayeem Sheikh
-**Architecture Type:** Portable, Zero-External-Framework Local Web Application (Python Stdlib + `streetlevel` + Pannellum v2.5.6)
+# StreetView Studio v2.0 — Current System Architecture
+**Author / Creator:** Md Sayeem Sheikh  
+**AI Co-Architect:** Google Gemini  
+**Current Version:** `v2.0.0` (Stable Release)
 
-## 1. Complete Directory Structure
+---
+
+## 1. System Overview
+**StreetView Studio** is an offline-first, portable desktop web application built with Python's standard library (`http.server`), `streetlevel`, and `Pannellum v2.5.6`. It archives historical Google Street View 360° equirectangular panoramas (`zoom=5`, ~13K resolution) along road paths and renders them in a zero-internet, browser-based virtual driving viewer.
+
+## 2. Directory Structure & File Responsibilities
 ```text
-StreetView_Studio_v2/               # Portable root folder (safe to move/rename anywhere)
+StreetView_Studio_v2/               # Portable root folder (safe to rename/move anywhere)
 ├── Launch_Studio.bat               # Windows 1-click launcher (waits 2s, opens browser, runs server.py)
 ├── server.py                       # Local HTTP server, REST API & background panorama scraper
-├── ARCHITECTURE.md                 # AI-to-AI technical specification (this file)
+├── ARCHITECTURE.md                 # Current implemented system blueprint (this file)
+├── ROADMAP.md                      # Future feature backlog & task checklist for Builder AI
+├── README.md                       # Public GitHub documentation & setup guide
 ├── USER_GUIDE.md                   # End-user manual in Bengali
+├── LICENSE                         # MIT License
 ├── studio/                         # Core Frontend Engine
 │   ├── index.html                  # Dashboard UI (Creator, Scan Estimator, Extend Modal, Tour Library)
-│   ├── style.css                   # Glassmorphism dark UI & dynamic background layer styles
-│   ├── studio.js                   # Dashboard API client, progress poller, dynamic slideshow controller
+│   ├── style.css                   # Glassmorphism dark UI & dynamic background slideshow styles
+│   ├── studio.js                   # Dashboard API client, progress poller, validated slideshow loader
 │   ├── viewer.html                 # Standalone cinematic virtual tour viewer
-│   ├── viewer.css                  # HUD styles, scrollable minimap, 5s Zen-mode, hidden load-box
+│   ├── viewer.css                  # Viewer HUD, scrollable minimap, 5s Zen-mode, hidden load-box
 │   ├── viewer.js                   # Compass-locked transitions, zoom motion, autopilot, driving keys
 │   ├── pannellum.js                # Local offline Pannellum v2.5.6 engine
 │   ├── pannellum.css               # Local offline Pannellum v2.5.6 stylesheet
-│   ├── logo.png                    # Creator circular emblem/logo (optional; graceful fallback)
-│   └── backgrounds/                # Drop any custom background images here (auto-detected)
-└── tours/                          # User road archives (auto-created if missing)
+│   ├── logo.png                    # Creator circular emblem (graceful fallback if missing)
+│   └── backgrounds/                # Custom drop-in background images (any filename, auto-validated)
+└── tours/                          # User road archives (ignored by Git via .gitignore)
     └── <Tour_Name>/                # Self-contained road tour directory
-        ├── tour_data.json          # Ordered panorama graph metadata
-        └── pano_001.jpg ...        # Full-resolution 13K equirectangular panoramas (~13-14 MB each)
+        ├── tour_data.json          # Ordered panorama sequence metadata
+        └── pano_001.jpg ...        # Full-resolution equirectangular panoramas (~13-14 MB each)
 ```
 
-## 2. Core Engine vs. User Data
-- **Core Engine (Lightweight Backup):** `Launch_Studio.bat`, `server.py`, and `studio/` (~500 KB excluding custom backgrounds). Even if `tours/` is deleted, `server.py` auto-creates an empty `tours/` folder on boot.
-- **No Hardcoded Paths:** All file paths resolve relative to `os.path.abspath(__file__)` and relative HTTP routes (`/tours/...`, `/backgrounds/...`), making the entire folder 100% portable across drives and machines.
+## 3. Golden Rules (Backward Compatibility & Portability)
+1. **`tour_data.json` Schema Lock:** Never break compatibility with existing `tour_data.json` files (`id`, `file`, `lat`, `lon`, `heading`, `links`). Any folder inside `tours/` from `v1.0` or `v2.0` must work seamlessly in future versions.
+2. **Sequence by Array Order:** The viewer determines panorama playback order strictly by the array index in `tour_data.json`, NOT by filename (`pano_001.jpg`).
+3. **Zero Hardcoded Paths:** All backend paths resolve relative to `os.path.abspath(__file__)` and relative HTTP routes (`/tours/...`, `/backgrounds/...`).
 
-## 3. Environment & Critical Fixes (DO NOT REPEAT TRIAL-AND-ERROR)
-1. **Windows `streetlevel` Installation:** Standard `pip install streetlevel` fails on Windows due to C++ compiler requirements for `pyfrpc`. Always install via:
+## 4. Environment & Critical Fixes (DO NOT REGRESS)
+1. **Windows `streetlevel` Installation:** Standard `pip install streetlevel` fails on Windows due to C++ compiler requirements for `pyfrpc`. Always document/use:
    `$env:PYFRPC_NOEXT="1"; pip install streetlevel`
-2. **Batch Startup Race Condition:** `Launch_Studio.bat` delays browser launch by 2 seconds (`timeout /t 2 /nobreak >nul`) so Python binds `127.0.0.1:8080` before the browser requests it.
-3. **Suppressed Pannellum Loading Box:** `.pnlm-load-box { display: none !important; }` in `viewer.css` removes the jarring black loading box during rapid keyboard/autopilot transitions.
+2. **Batch Startup Timing:** `Launch_Studio.bat` delays browser launch by 2 seconds (`timeout /t 2 /nobreak >nul`) so Python binds `127.0.0.1:8080` before the browser requests it.
+3. **Suppressed Pannellum Loading Box:** `.pnlm-load-box { display: none !important; }` in `viewer.css` prevents black loading box flashes during transitions.
+4. **Validated Background Slideshow:** `studio.js` encodes image URLs (`encodeURI`) and validates each image via `Image.onload` before adding to the rotation to prevent black screen frames on corrupt/unsupported formats.
 
-## 4. Backend REST API (`server.py`)
-- `GET /api/tours`: Lists valid tour folders containing `tour_data.json` with image count, total MB size, and start/end GPS coordinates.
-- `GET /api/backgrounds`: Scans `studio/backgrounds/` for `.jpg/.jpeg/.png/.webp` files (any filename) for the dashboard slideshow.
-- `POST /api/scan`: Parses `@lat,lon` from Start & End Google Maps URLs, traverses `pano.links` using weighted target+momentum bearing (`score = diff_target*0.6 + diff_momentum*0.4`), and estimates count + disk size (`count * 13.5 MB`).
-- `POST /api/download`: Downloads `zoom=5` equirectangular panoramas in a daemon thread and flushes `tour_data.json` incrementally after every image.
+## 5. Implemented Backend REST API (`server.py`)
+- `GET /api/tours`: Scans `tours/*` for valid `tour_data.json`, calculates total MB size, and returns start/end GPS coordinates.
+- `GET /api/backgrounds`: Scans `studio/backgrounds/` for `.jpg/.jpeg/.png/.webp` files.
+- `POST /api/scan`: Extracts `@lat,lon` from Start & End Google Maps URLs, traverses `pano.links` using weighted target+momentum bearing (`score = diff_target*0.6 + diff_momentum*0.4`), and returns panorama count + estimated disk size (`count * 13.5 MB`).
+- `POST /api/download`: Downloads `zoom=5` panoramas in a daemon thread and flushes `tour_data.json` incrementally after each image.
 - `GET /api/status`: Exposes live background worker progress (`active`, `current`, `total`, `message`).
-- `POST /api/extend`: Appends panoramas starting from the last entry in `tour_data.json`. Supports both a numeric count limit and an optional `end_link` to navigate junctions and stop within `15m` of the target.
-- `POST /api/rename` & `POST /api/delete`: Renames or removes tour folders inside `tours/`.
+- `POST /api/extend`: Appends panoramas forward from the last entry in `tour_data.json` using a numeric limit and an optional `end_link` for junction steering.
+- `POST /api/rename` & `POST /api/delete`: Renames or deletes tour folders inside `tours/`.
 
-## 5. Viewer Engine (`studio/viewer.js`)
-- **Compass-Locked Camera:** Maintains real-world compass bearing across panorama jumps (`worldCompassBearing = (oldHeadingDeg + currentYaw) % 360`).
-- **Pre-Jump Zoom Animation:** Smoothly narrows `hfov` (`currentHfov - 18` over `220ms`) before `loadScene()` on forward steps.
-- **Autopilot & Driving Controls:** `Up`/`W` (Forward), `Down`/`S` (Backward), `Left`/`A` (Yaw Left), `Right`/`D` (Yaw Right), `Space` (Autopilot Play/Pause at 4s/2.5s/1.5s), `F` (Fullscreen).
-- **5-Second Zen Mode:** Fades out all HUD elements and cursor after 5000ms of inactivity for unobstructed viewing and clean screenshots.
+## 6. Implemented Viewer Engine (`studio/viewer.js`)
+- **Compass-Locked Camera:** Preserves real-world compass bearing (`worldCompassBearing = (oldHeadingDeg + currentYaw) % 360`) across scene switches.
+- **Pre-Jump Zoom Motion:** Narrows `hfov` (`currentHfov - 18` over `220ms`) before `loadScene()` on forward steps.
+- **Autopilot & Controls:** `Up`/`W` (Forward), `Down`/`S` (Backward), `Left`/`A` (Yaw Left), `Right`/`D` (Yaw Right), `Space` (Autopilot at `4000ms`/`2500ms`/`1500ms`), `F` (Fullscreen).
+- **5-Second Zen Mode:** Adds `.zen-mode` after 5000ms of user inactivity to hide all HUD overlays and cursor.
