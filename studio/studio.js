@@ -15,6 +15,8 @@ let bgSlides = [];
 let bgIndex = 0;
 let bgInterval = null;
 let extendingTourName = "";
+let trimmingTourName = "";
+let trimmingTourCount = 0;
 
 window.addEventListener('DOMContentLoaded', () => {
     loadTours();
@@ -201,7 +203,7 @@ function renderTours(tours) {
             <div class="tour-actions">
                 <button class="btn primary small" onclick="openViewer('${t.name}')">Open Viewer</button>
                 <button class="btn secondary small" onclick="extendTour('${t.name}')">Extend (+)</button>
-                <button class="btn secondary small" onclick="trimLastTour('${t.name}', ${t.count})" ${t.count <= 1 ? 'disabled title="Tours must keep at least one image"' : ''}>Trim Last (-1)</button>
+                <button class="btn secondary small" onclick="openTrimModal('${t.name}', ${t.count})" ${t.count <= 1 ? 'disabled title="Tours must keep at least one image"' : ''}>Trim (-)</button>
                 <button class="btn secondary small" onclick="renameTour('${t.name}')">Rename</button>
                 <button class="btn danger small" onclick="deleteTour('${t.name}')">Delete</button>
             </div>
@@ -270,22 +272,37 @@ async function deleteTour(name) {
     else loadTours();
 }
 
-async function trimLastTour(name, count) {
+function openTrimModal(name, count) {
     if (count <= 1) {
-        alert("Cannot trim the last image. Tours must keep at least one image.");
+        alert("Cannot trim an image. Tours must keep at least one image.");
         return;
     }
-    if (!confirm(`Remove the final panorama image from "${name}"?`)) return;
+    trimmingTourName = name;
+    trimmingTourCount = count;
+    document.getElementById('trim-modal-title').innerText = `Trim "${name}"`;
+    document.getElementById('trim-modal').classList.remove('hidden');
+}
+
+document.getElementById('btn-trim-cancel').addEventListener('click', () => {
+    document.getElementById('trim-modal').classList.add('hidden');
+});
+
+async function confirmTrim(side) {
+    const pointName = side === 'first' ? 'First Point (Start)' : 'Last Point (End)';
+    if (!confirm(`Permanently delete the ${pointName} panorama image from "${trimmingTourName}"?\n\nThis action cannot be undone.`)) {
+        return;
+    }
 
     try {
-        const res = await fetch('/api/trim-last', {
+        const res = await fetch('/api/trim', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
+            body: JSON.stringify({ name: trimmingTourName, side })
         });
         const data = await res.json();
+        document.getElementById('trim-modal').classList.add('hidden');
         if (!data.ok) {
-            alert(data.error || "Could not trim the last image.");
+            alert(data.error || "Could not trim the selected image.");
         } else {
             loadTours();
         }
@@ -293,3 +310,6 @@ async function trimLastTour(name, count) {
         alert("Server error.");
     }
 }
+
+document.getElementById('btn-trim-first').addEventListener('click', () => confirmTrim('first'));
+document.getElementById('btn-trim-last').addEventListener('click', () => confirmTrim('last'));

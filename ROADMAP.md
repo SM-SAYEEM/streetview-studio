@@ -21,6 +21,11 @@
   - Add a **"Trim Last (-1)"** button on each tour card in the dashboard (`studio/index.html`, `studio/studio.js`) and a `/api/trim-last` endpoint in `server.py`.
   - Safely deletes the final panorama file on disk and pops the last entry from `tour_data.json` (preventing deletion if only 1 image remains).
 
+- [x] **Task 1.2b: Bidirectional Trim with Safety Confirmation (`Trim (-)` from Start or End)**
+  - Upgrade the `Trim Last (-1)` button into a **`Trim (-)`** button on each tour card (`studio/index.html`, `studio/studio.js`) and update the backend endpoint (`POST /api/trim` accepting `{"name": "...", "side": "first" | "last"}`) in `server.py`.
+  - Clicking **`Trim (-)`** opens a choice modal/dialog to select either **First Point (Start)** or **Last Point (End)**.
+  - **Mandatory Safety Confirmation:** Selecting either option must trigger an explicit confirmation prompt (`confirm(...)`) warning that the specific image will be permanently deleted from disk and cannot be undone before sending the API request. Keep at least 1 image intact.
+
 - [ ] **Task 1.3: Prepend / Extend Backward from Start Point (`POST /api/prepend`)**
   - Enhance the **Extend** modal to allow choosing direction: **Forward (from End)** or **Backward (from Start)** with an optional target link.
   - Because `viewer.js` reads sequence order from `tour_data.json` array index rather than filename, new backward images can be saved as `pano_051.jpg...` and inserted at the **beginning** (`index 0`) of `tour_data.json` (reversed in travel order) without renaming existing files.
