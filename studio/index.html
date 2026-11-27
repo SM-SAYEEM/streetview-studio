@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StreetView Studio v2.0 — by Md Sayeem Sheikh</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- ডাইনামিক ব্যাকগ্রাউন্ড স্লাইডশো লেয়ার -->
+    <div id="dynamic-bg-layer"></div>
+    <div class="bg-overlay"></div>
+
+    <div class="container">
+        <header>
+            <div class="brand-box">
+                <img src="logo.png" alt="Logo" class="brand-logo" onerror="this.style.display='none'">
+                <div>
+                    <h1>StreetView Studio <span class="badge">v2.0</span></h1>
+                    <p class="subtitle">Offline 360° Road Archiver &amp; Virtual Tour Engine &bull; Crafted by <strong>Md Sayeem Sheikh</strong></p>
+                </div>
+            </div>
+            <div class="status-pill" id="engine-status">Engine Ready</div>
+        </header>
+
+        <!-- নতুন ট্যুর তৈরি ও স্ক্যান প্যানেল -->
+        <section class="card">
+            <h2>Create New Road Tour</h2>
+            <div class="form-grid">
+                <div class="field">
+                    <label for="tour-name">Tour Name (Folder Name)</label>
+                    <input type="text" id="tour-name" placeholder="e.g., School_to_Home">
+                </div>
+                <div class="field">
+                    <label for="start-link">Start Point Link (Google Maps Street View URL)</label>
+                    <input type="text" id="start-link" placeholder="Paste starting Street View URL with @lat,lon...">
+                </div>
+                <div class="field">
+                    <label for="end-link">End Point Link (Google Maps Street View URL)</label>
+                    <input type="text" id="end-link" placeholder="Paste destination Street View URL with @lat,lon...">
+                </div>
+            </div>
+
+            <div class="action-row">
+                <button id="btn-scan" class="btn secondary">1. Scan &amp; Estimate Path</button>
+            </div>
+
+            <!-- স্ক্যান রেজাল্ট ও লিমিট বক্স -->
+            <div id="scan-result" class="scan-box hidden">
+                <div class="scan-info" id="scan-summary"></div>
+                <div class="download-controls">
+                    <label for="download-limit">Images to download:</label>
+                    <input type="number" id="download-limit" min="1" max="500" value="50">
+                    <button id="btn-download" class="btn primary">2. Start Download</button>
+                </div>
+            </div>
+
+            <!-- লাইভ প্রোগ্রেস বার -->
+            <div id="progress-box" class="progress-box hidden">
+                <div class="progress-header">
+                    <span id="progress-text">Preparing...</span>
+                    <span id="progress-percent">0%</span>
+                </div>
+                <div class="progress-track">
+                    <div id="progress-fill" class="progress-fill"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- সেভ করা ট্যুর লিস্ট -->
+        <section class="card">
+            <div class="section-header">
+                <h2>Saved Road Tours</h2>
+                <button id="btn-refresh" class="btn small">Refresh List</button>
+            </div>
+            <div id="tours-list" class="tours-grid">
+                <p class="muted">Loading saved tours...</p>
+            </div>
+        </section>
+
+        <footer class="app-footer">
+            <span>StreetView Studio v2.0 &bull; Developed by <strong>Md Sayeem Sheikh</strong></span>
+        </footer>
+    </div>
+
+    <!-- স্মার্ট Extend পপ-আপ বক্স -->
+    <div id="extend-modal" class="modal-backdrop hidden">
+        <div class="card modal-card">
+            <h2 id="extend-modal-title">Extend Tour</h2>
+            <div class="form-grid">
+                <div class="field">
+                    <label for="extend-count">Max Extra Images to Add</label>
+                    <input type="number" id="extend-count" min="1" max="300" value="25">
+                </div>
+                <div class="field">
+                    <label for="extend-end-link">Target End Link (Optional — recommended if there is a junction/turn ahead)</label>
+                    <input type="text" id="extend-end-link" placeholder="Leave blank for straight road, or paste Google Maps URL...">
+                </div>
+            </div>
+            <div class="action-row modal-actions">
+                <button id="btn-extend-cancel" class="btn secondary">Cancel</button>
+                <button id="btn-extend-confirm" class="btn primary">Start Extending</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="studio.js"></script>
+</body>
+</html>

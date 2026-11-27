@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StreetView Tour Viewer</title>
+    <link rel="stylesheet" href="pannellum.css">
+    <link rel="stylesheet" href="viewer.css">
+    <script src="pannellum.js"></script>
+</head>
+<body>
+    <!-- উপরের তথ্য ও ফুলস্ক্রিন বাটন -->
+    <div id="top-hud" class="hud-element">
+        <span id="tour-title" class="title-tag">Loading...</span>
+        <span class="divider">|</span>
+        <span id="step-counter">0 / 0</span>
+        <button id="btn-fullscreen" title="Toggle Fullscreen (F)">&#x26F6;</button>
+    </div>
+
+    <div id="panorama"></div>
+
+    <!-- ডানপাশের স্ক্রলযোগ্য স্টেপ মিনিম্যাপ -->
+    <div id="step-minimap" class="hud-element" title="Click any tick to jump"></div>
+
+    <!-- নিচের ড্রাইভিং ও অটোপাইলট কন্ট্রোল বার -->
+    <div id="nav-controls" class="hud-element">
+        <button id="btn-prev" title="Backward (Down Arrow / S)">&#9664; Back</button>
+        <button id="btn-autopilot" class="auto-btn" title="Play/Pause Autopilot (Spacebar)">&#9654; Autopilot</button>
+        <select id="speed-select" title="Autopilot Speed">
+            <option value="4000">Slow (4s)</option>
+            <option value="2500" selected>Normal (2.5s)</option>
+            <option value="1500">Fast (1.5s)</option>
+        </select>
+        <button id="btn-next" title="Forward (Up Arrow / W)">Forward &#9654;</button>
+    </div>
+
+    <script src="viewer.js"></script>
+</body>
+</html>

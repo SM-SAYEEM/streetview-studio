@@ -1,0 +1,4 @@
+tours/*
+!tours/.gitkeep
+__pycache__/
+*.pyc

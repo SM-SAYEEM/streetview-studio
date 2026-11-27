@@ -1,0 +1,199 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body, html {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #090a0d;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+#panorama {
+    width: 100%;
+    height: 100%;
+}
+
+/* ৫-সেকেন্ড Auto-Hide (Zen Mode) ট্রানজিশন */
+.hud-element {
+    transition: opacity 0.45s ease, transform 0.45s ease;
+    opacity: 1;
+}
+
+body.zen-mode .hud-element,
+body.zen-mode .pnlm-controls-container,
+body.zen-mode .pnlm-compass {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+body.zen-mode {
+    cursor: none;
+}
+
+/* উপরের HUD বার */
+#top-hud {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 17, 22, 0.72);
+    backdrop-filter: blur(8px);
+    color: #f8fafc;
+    padding: 7px 16px;
+    border-radius: 24px;
+    font-size: 13px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.title-tag {
+    font-weight: 600;
+    color: #93c5fd;
+}
+
+.divider {
+    opacity: 0.35;
+}
+
+#btn-fullscreen {
+    background: rgba(255, 255, 255, 0.12);
+    border: none;
+    color: #fff;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 4px;
+}
+
+#btn-fullscreen:hover {
+    background: #3b82f6;
+}
+
+/* ডানপাশের স্ক্রলযোগ্য মিনিম্যাপ (সর্বোচ্চ ~২২টি দাগ দেখাবে, বাকি স্ক্রল হবে) */
+#step-minimap {
+    position: fixed;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    padding: 10px 7px;
+    background: rgba(15, 17, 22, 0.52);
+    backdrop-filter: blur(6px);
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+#step-minimap::-webkit-scrollbar {
+    width: 3px;
+}
+#step-minimap::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 3px;
+}
+
+.step-tick {
+    width: 14px;
+    min-height: 3px;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.35);
+    border-radius: 2px;
+    cursor: pointer;
+    transition: width 0.15s ease, background 0.15s ease;
+    flex-shrink: 0;
+}
+
+.step-tick:hover {
+    width: 24px;
+    background: #ffffff;
+}
+
+.step-tick.active {
+    width: 28px;
+    min-height: 4px;
+    height: 4px;
+    background: #3b82f6;
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.9);
+}
+
+/* নিচের কন্ট্রোল বার */
+#nav-controls {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(15, 17, 22, 0.78);
+    backdrop-filter: blur(8px);
+    padding: 7px 10px;
+    border-radius: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+#nav-controls button {
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+    border: none;
+    padding: 9px 18px;
+    border-radius: 22px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    white-space: nowrap;
+}
+
+#nav-controls button:hover:not(:disabled) {
+    background: #3b82f6;
+}
+
+#nav-controls button:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+#nav-controls button.auto-btn.playing {
+    background: #10b981;
+    color: #fff;
+}
+
+#speed-select {
+    background: rgba(255, 255, 255, 0.1);
+    color: #e2e8f0;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 8px 10px;
+    border-radius: 18px;
+    font-size: 12px;
+    outline: none;
+    cursor: pointer;
+}
+
+#speed-select option {
+    background: #181b22;
+    color: #fff;
+}
+
+/* বিরক্তিকর কালো Loading বক্স লুকিয়ে রাখা */
+.pnlm-load-box {
+    display: none !important;
+}
