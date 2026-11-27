@@ -22,7 +22,7 @@ You do **not** need to know programming or Git to use this tool:
 2. **Install Python:** Download and install **Python 3.8+** on your computer *(make sure to check **"Add python.exe to PATH"** during installation)*.
 3. **Install Required Library:** Open your terminal / PowerShell and run:
    ```powershell
-   \$env:PYFRPC_NOEXT="1"; pip install streetlevel
+   $env:PYFRPC_NOEXT="1"; pip install streetlevel
    ```
 4. **Launch the Studio:**
    - **Windows:** Double-click **`Launch_Studio.bat`**. Your browser will automatically open `http://localhost:8080`.
