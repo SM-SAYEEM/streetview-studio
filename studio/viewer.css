@@ -17,6 +17,23 @@ body, html {
     height: 100%;
 }
 
+#transition-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    pointer-events: none;
+    opacity: 0;
+    background-color: #090a0d;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    transition: opacity 400ms ease;
+}
+
+#transition-overlay.visible {
+    opacity: 1;
+}
+
 /* ৫-সেকেন্ড Auto-Hide (Zen Mode) ট্রানজিশন */
 .hud-element {
     transition: opacity 0.45s ease, transform 0.45s ease;
@@ -190,6 +207,17 @@ body.zen-mode {
 
 #speed-select option {
     background: #181b22;
+    color: #fff;
+}
+
+#nav-controls #btn-sway {
+    min-width: 58px;
+    padding: 8px 12px;
+    font-size: 12px;
+}
+
+#nav-controls #btn-sway[aria-pressed="true"] {
+    background: #8b5cf6;
     color: #fff;
 }
 

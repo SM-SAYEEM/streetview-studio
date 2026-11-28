@@ -1,16 +1,30 @@
 const params = new URLSearchParams(window.location.search);
 const tourName = params.get('tour');
+const transitionOverlay = document.getElementById('transition-overlay');
 
 let viewer = null;
 let tourData = [];
 let currentIndex = 0;
 let isTransitioning = false;
 const preloadedImages = new Map();
-let autopilotTimer = null;
+let cameraFrame = null;
+let isAutopilotPlaying = false;
+let autopilotWaitingForSceneLoad = false;
+let autopilotStartedAt = 0;
+let autopilotDuration = 2500;
+let autopilotStartHfov = 100;
+let viewerLoaded = false;
+let transitionOverlayFadeHandler = null;
 let idleTimer = null;
 let zenModeTimeoutMs = 5000;
 const rotatingKeys = new Set();
-let cameraRotationFrame = null;
+let cameraRotationActive = false;
+let isPointerSteering = false;
+let isSwayEnabled = false;
+let swayStartedAt = 0;
+let swayLastAngle = 0;
+const swayAmplitude = 10;
+const swayPeriodMs = 12000;
 let cameraRotation = {
     startYaw: 0,
     startPitch: 0,
@@ -76,6 +90,9 @@ function initViewer() {
         },
         scenes: scenes
     });
+    viewer.on('load', handleViewerLoad);
+    viewer.on('error', handleViewerError);
+    viewerLoaded = viewer.isLoaded();
 
     buildMinimap();
     updatePreloadCache();
@@ -130,7 +147,7 @@ function updatePreloadCache() {
 // স্মুথ জুম-ইন ট্রানজিশন + কম্পাস অ্যাঙ্গেল লক করে পরের ছবিতে যাওয়া
 function goToStep(targetIdx, useZoomEffect = true) {
     if (isTransitioning || targetIdx < 0 || targetIdx >= tourData.length || targetIdx === currentIndex) {
-        if (targetIdx >= tourData.length && autopilotTimer) {
+        if (targetIdx >= tourData.length && isAutopilotPlaying) {
             stopAutopilot();
         }
         return;
@@ -152,6 +169,8 @@ function goToStep(targetIdx, useZoomEffect = true) {
     const performSwitch = () => {
         currentIndex = targetIdx;
         updatePreloadCache();
+        captureTransitionFrame();
+        viewerLoaded = false;
         viewer.loadScene("scene_" + targetIdx, currentPitch, targetYaw, currentHfov);
         updateUI(targetIdx);
         setTimeout(() => {
@@ -178,7 +197,10 @@ function buildMinimap() {
         tick.className = 'step-tick';
         tick.id = 'tick-' + idx;
         tick.title = `Point ${idx + 1}`;
-        tick.addEventListener('click', () => goToStep(idx, false));
+        tick.addEventListener('click', () => {
+            stopAutopilot();
+            goToStep(idx, false);
+        });
         minimap.appendChild(tick);
     });
 }
@@ -201,7 +223,7 @@ function updateUI(idx) {
 
 // অটোপাইলট (Auto-Play) কন্ট্রোল
 function toggleAutopilot() {
-    if (autopilotTimer) {
+    if (isAutopilotPlaying) {
         stopAutopilot();
     } else {
         startAutopilot();
@@ -209,6 +231,8 @@ function toggleAutopilot() {
 }
 
 function startAutopilot() {
+    if (tourData.length < 2 || isAutopilotPlaying) return;
+
     if (currentIndex >= tourData.length - 1) {
         goToStep(0, false);
     }
@@ -216,21 +240,179 @@ function startAutopilot() {
     btn.classList.add('playing');
     btn.innerHTML = "&#10074;&#10074; Pause";
 
-    const delay = parseInt(document.getElementById('speed-select').value, 10) || 2500;
-    autopilotTimer = setInterval(() => {
-        if (currentIndex < tourData.length - 1) {
-            goToStep(currentIndex + 1, true);
-        } else {
-            stopAutopilot();
+    autopilotDuration = parseInt(document.getElementById('speed-select').value, 10) || 2500;
+    isAutopilotPlaying = true;
+    if (isSwayEnabled) {
+        swayStartedAt = performance.now();
+        swayLastAngle = 0;
+    }
+    if (viewerLoaded) {
+        autopilotStartHfov = viewer.getHfov();
+        autopilotStartedAt = performance.now();
+    } else {
+        autopilotWaitingForSceneLoad = true;
+    }
+    requestCameraFrame();
+}
+
+function captureTransitionFrame() {
+    const renderer = viewer.getRenderer();
+    const canvas = renderer && renderer.getCanvas();
+    if (!canvas || canvas.width === 0 || canvas.height === 0) return;
+
+    try {
+        transitionOverlay.style.backgroundImage = `url("${canvas.toDataURL('image/jpeg', 0.55)}")`;
+        transitionOverlay.classList.add('visible');
+    } catch (error) {
+        console.warn('Could not capture panorama transition frame:', error);
+        clearTransitionOverlay();
+    }
+}
+
+function clearTransitionOverlay() {
+    transitionOverlay.classList.remove('visible');
+    transitionOverlay.style.backgroundImage = 'none';
+    if (transitionOverlayFadeHandler) {
+        transitionOverlay.removeEventListener('transitionend', transitionOverlayFadeHandler);
+        transitionOverlayFadeHandler = null;
+    }
+}
+
+function fadeTransitionOverlay() {
+    if (!transitionOverlay.classList.contains('visible')) return;
+
+    if (transitionOverlayFadeHandler) {
+        transitionOverlay.removeEventListener('transitionend', transitionOverlayFadeHandler);
+    }
+    transitionOverlayFadeHandler = (event) => {
+        if (event.target !== transitionOverlay || event.propertyName !== 'opacity') return;
+        if (!transitionOverlay.classList.contains('visible')) {
+            transitionOverlay.style.backgroundImage = 'none';
         }
-    }, delay);
+        transitionOverlay.removeEventListener('transitionend', transitionOverlayFadeHandler);
+        transitionOverlayFadeHandler = null;
+    };
+    transitionOverlay.addEventListener('transitionend', transitionOverlayFadeHandler);
+    transitionOverlay.classList.remove('visible');
+}
+
+function handleViewerLoad() {
+    viewerLoaded = true;
+    cameraRotation.lastFrameAt = performance.now();
+    fadeTransitionOverlay();
+    if (isAutopilotPlaying && autopilotWaitingForSceneLoad) {
+        autopilotWaitingForSceneLoad = false;
+        autopilotStartHfov = viewer.getHfov();
+        autopilotStartedAt = performance.now();
+        if (isSwayEnabled) {
+            swayLastAngle = getSwayAngle(autopilotStartedAt);
+        }
+    }
+    requestCameraFrame();
+}
+
+function handleViewerError(error) {
+    console.error('Panorama scene failed to load:', error);
+    clearTransitionOverlay();
+    viewerLoaded = viewer.isLoaded();
+    if (isAutopilotPlaying && autopilotWaitingForSceneLoad) {
+        stopAutopilot();
+    }
+}
+
+function requestCameraFrame() {
+    if (!viewerLoaded || (!isAutopilotPlaying && !cameraRotationActive) || cameraFrame !== null) return;
+    cameraFrame = requestAnimationFrame(animateCameraFrame);
+}
+
+function animateCameraFrame(timestamp) {
+    cameraFrame = null;
+    if (!viewerLoaded) return;
+
+    let deltaYaw = 0;
+    let deltaPitch = 0;
+    let deltaSway = 0;
+    let rotationSettled = false;
+
+    if (cameraRotationActive) {
+        const rotationProgress = Math.min(1, (timestamp - cameraRotation.startedAt) / cameraRotation.duration);
+        const yawVelocity = getRotationVelocity(cameraRotation.startYaw, cameraRotation.targetYaw, rotationProgress);
+        const pitchVelocity = getRotationVelocity(cameraRotation.startPitch, cameraRotation.targetPitch, rotationProgress);
+        const deltaSeconds = Math.min((timestamp - cameraRotation.lastFrameAt) / 1000, 0.05);
+        cameraRotation.lastFrameAt = timestamp;
+        deltaYaw = yawVelocity * deltaSeconds;
+        deltaPitch = pitchVelocity * deltaSeconds;
+        rotationSettled = rotationProgress === 1 &&
+            cameraRotation.targetYaw === 0 && cameraRotation.targetPitch === 0;
+    }
+
+    if (isAutopilotPlaying) {
+        if (isSwayEnabled) {
+            const swayAngle = getSwayAngle(timestamp);
+            const userSteering = isPointerSteering || rotatingKeys.size > 0 || cameraRotationActive;
+            if (!userSteering) {
+                deltaSway = swayAngle - swayLastAngle;
+            }
+            swayLastAngle = swayAngle;
+        }
+
+        const currentYaw = viewer.getYaw();
+        const currentPitch = viewer.getPitch();
+        viewer.setYaw(currentYaw + deltaYaw + deltaSway, false);
+        viewer.setPitch(Math.max(-90, Math.min(90, currentPitch + deltaPitch)), false);
+
+        const progress = Math.min(1, (timestamp - autopilotStartedAt) / autopilotDuration);
+        const hfov = autopilotStartHfov + (82 - autopilotStartHfov) * progress;
+        viewer.setHfov(hfov, false);
+
+        if (progress === 1) {
+            const nextIndex = currentIndex + 1;
+            if (nextIndex >= tourData.length) {
+                stopAutopilot();
+                return;
+            }
+
+            const oldHeadingDeg = (tourData[currentIndex].heading * 180) / Math.PI;
+            const worldCompassBearing = (oldHeadingDeg + viewer.getYaw() + 360) % 360;
+            const newHeadingDeg = (tourData[nextIndex].heading * 180) / Math.PI;
+            const targetYaw = normalizeYaw(worldCompassBearing - newHeadingDeg);
+            const targetPitch = viewer.getPitch();
+
+            currentIndex = nextIndex;
+            updatePreloadCache();
+            captureTransitionFrame();
+            viewerLoaded = false;
+            autopilotWaitingForSceneLoad = true;
+            viewer.loadScene("scene_" + nextIndex, targetPitch, targetYaw, 96);
+            updateUI(nextIndex);
+
+            if (nextIndex >= tourData.length - 1) {
+                stopAutopilot();
+                return;
+            }
+        }
+    } else if (cameraRotationActive) {
+        viewer.setYaw(viewer.getYaw() + deltaYaw, false);
+        viewer.setPitch(Math.max(-90, Math.min(90, viewer.getPitch() + deltaPitch)), false);
+    }
+
+    if (rotationSettled) {
+        cameraRotationActive = false;
+        cameraRotation.startYaw = 0;
+        cameraRotation.startPitch = 0;
+    }
+
+    requestCameraFrame();
 }
 
 function stopAutopilot() {
-    if (autopilotTimer) {
-        clearInterval(autopilotTimer);
-        autopilotTimer = null;
+    isAutopilotPlaying = false;
+    autopilotWaitingForSceneLoad = false;
+    if (!cameraRotationActive && cameraFrame !== null) {
+        cancelAnimationFrame(cameraFrame);
+        cameraFrame = null;
     }
+
     const btn = document.getElementById('btn-autopilot');
     btn.classList.remove('playing');
     btn.innerHTML = "&#9654; Autopilot";
@@ -261,6 +443,21 @@ function getRotationVelocity(start, target, progress) {
     return start + (target - start) * easeOutCubic(progress);
 }
 
+function getSwayAngle(timestamp) {
+    const phase = ((timestamp - swayStartedAt) / swayPeriodMs) * Math.PI * 2;
+    return Math.sin(phase) * swayAmplitude;
+}
+
+function toggleSway() {
+    isSwayEnabled = !isSwayEnabled;
+    const button = document.getElementById('btn-sway');
+    button.setAttribute('aria-pressed', String(isSwayEnabled));
+    if (isSwayEnabled) {
+        swayStartedAt = performance.now();
+        swayLastAngle = 0;
+    }
+}
+
 function smoothRotateCamera(deltaYaw, deltaPitch, duration = 320) {
     if (!viewer) return;
     if (cameraRotation.targetYaw === deltaYaw && cameraRotation.targetPitch === deltaPitch) return;
@@ -282,29 +479,8 @@ function smoothRotateCamera(deltaYaw, deltaPitch, duration = 320) {
         lastFrameAt: now
     };
 
-    if (cameraRotationFrame === null) {
-        cameraRotationFrame = requestAnimationFrame(animateCameraRotation);
-    }
-}
-
-function animateCameraRotation(timestamp) {
-    const progress = Math.min(1, (timestamp - cameraRotation.startedAt) / cameraRotation.duration);
-    const yawVelocity = getRotationVelocity(cameraRotation.startYaw, cameraRotation.targetYaw, progress);
-    const pitchVelocity = getRotationVelocity(cameraRotation.startPitch, cameraRotation.targetPitch, progress);
-    const deltaSeconds = Math.min((timestamp - cameraRotation.lastFrameAt) / 1000, 0.05);
-    cameraRotation.lastFrameAt = timestamp;
-
-    if (deltaSeconds > 0) {
-        viewer.setYaw(viewer.getYaw() + yawVelocity * deltaSeconds, 0);
-        viewer.setPitch(Math.max(-90, Math.min(90, viewer.getPitch() + pitchVelocity * deltaSeconds)), 0);
-    }
-
-    const settled = progress === 1 && cameraRotation.targetYaw === 0 && cameraRotation.targetPitch === 0;
-    if (settled) {
-        cameraRotationFrame = null;
-        return;
-    }
-    cameraRotationFrame = requestAnimationFrame(animateCameraRotation);
+    cameraRotationActive = true;
+    requestCameraFrame();
 }
 
 function updateCameraRotationFromKeys() {
@@ -329,12 +505,16 @@ function setupControls() {
     document.getElementById('btn-autopilot').addEventListener('click', toggleAutopilot);
 
     document.getElementById('speed-select').addEventListener('change', () => {
-        if (autopilotTimer) {
-            stopAutopilot();
-            startAutopilot();
+        if (isAutopilotPlaying) {
+            autopilotDuration = parseInt(document.getElementById('speed-select').value, 10) || 2500;
+            if (viewerLoaded && !autopilotWaitingForSceneLoad) {
+                autopilotStartHfov = viewer.getHfov();
+                autopilotStartedAt = performance.now();
+            }
         }
     });
 
+    document.getElementById('btn-sway').addEventListener('click', toggleSway);
     document.getElementById('btn-fullscreen').addEventListener('click', toggleFullscreen);
 
     // ড্রাইভিং কিবোর্ড কন্ট্রোল
@@ -350,37 +530,46 @@ function setupControls() {
 
         if (e.key === "w" || e.key === "W" || e.key === "PageUp") {
             e.preventDefault();
+            e.stopPropagation();
             stopAutopilot();
             goToStep(currentIndex + 1, true);
         } else if (e.key === "s" || e.key === "S" || e.key === "PageDown") {
             e.preventDefault();
+            e.stopPropagation();
             stopAutopilot();
             goToStep(currentIndex - 1, false);
         } else if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") {
             e.preventDefault();
+            e.stopPropagation();
             rotatingKeys.add(e.key.length === 1 ? e.key.toLowerCase() : e.key);
             updateCameraRotationFromKeys();
         } else if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") {
             e.preventDefault();
+            e.stopPropagation();
             rotatingKeys.add(e.key.length === 1 ? e.key.toLowerCase() : e.key);
             updateCameraRotationFromKeys();
         } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
             e.preventDefault();
+            e.stopPropagation();
             rotatingKeys.add(e.key);
             updateCameraRotationFromKeys();
         } else if (e.key === "Home") {
             e.preventDefault();
+            e.stopPropagation();
             stopAutopilot();
             goToStep(0, false);
         } else if (e.key === "End") {
             e.preventDefault();
+            e.stopPropagation();
             stopAutopilot();
             goToStep(tourData.length - 1, false);
         } else if (e.code === "Space" || e.key === " ") {
             e.preventDefault();
+            e.stopPropagation();
             toggleAutopilot();
         } else if (e.key === "f" || e.key === "F") {
             e.preventDefault();
+            e.stopPropagation();
             toggleFullscreen();
         }
     }, true);
@@ -388,6 +577,7 @@ function setupControls() {
     window.addEventListener('keyup', (e) => {
         const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
         if (rotatingKeys.delete(key)) {
+            e.stopPropagation();
             resetIdleTimer();
             updateCameraRotationFromKeys();
         }
@@ -398,6 +588,16 @@ function setupControls() {
             rotatingKeys.clear();
             smoothRotateCamera(0, 0);
         }
+    });
+
+    window.addEventListener('pointerdown', () => {
+        isPointerSteering = true;
+    }, { passive: true });
+
+    ['pointerup', 'pointercancel', 'mouseup', 'touchend', 'touchcancel'].forEach(evt => {
+        window.addEventListener(evt, () => {
+            isPointerSteering = false;
+        }, { passive: true });
     });
 
     ['mousemove', 'mousedown', 'wheel', 'touchstart'].forEach(evt => {

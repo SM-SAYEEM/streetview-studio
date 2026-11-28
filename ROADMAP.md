@@ -59,8 +59,8 @@
 - [x] **Task 2.1: Background Image Preloader Cache (`+3` Ahead, `-1` Behind)**
   - In `studio/viewer.js`, whenever `currentIndex` changes, asynchronously preload `currentIndex + 1`, `currentIndex + 2`, `currentIndex + 3`, and `currentIndex - 1` into memory using `new Image()` so panorama switches feel instantaneous even on older hardware. Keep the cache bounded to that valid index window and release images that fall outside it.
 
-- [ ] **Task 2.2: Continuous Zoom-Through Autopilot Motion**
-  - Upgrade Autopilot in `studio/viewer.js` so that instead of waiting statically before jumping, the camera smoothly and continuously zooms forward (`hfov` animating from `100` down to `74` over the step duration via `requestAnimationFrame`), seamlessly cross-fading into the next panorama (compass-locked) at `hfov = 96` and continuing the zoom—creating a continuous video-like road trip feel.
+- [x] **Task 2.2: Continuous Zoom-Through Autopilot Motion**
+  - Upgrade Autopilot in `studio/viewer.js` so that instead of waiting statically before jumping, the camera smoothly and continuously zooms forward (`hfov` animating from `100` down to `74` over the step duration via `requestAnimationFrame`), seamlessly cross-fading into the next panorama (compass-locked) at `hfov = 98` and continuing the zoom—creating a continuous video-like road trip feel. Camera yaw and pitch controls remain live during playback; pause, route end, and speed changes manage the animation loop without stale frames.
 
 - [ ] **Task 2.3: Live Interactive Route Mini-Map (`studio/viewer.html`, `viewer.js`)**
   - Add a compact, collapsible mini-map overlay in the bottom-left corner of the viewer (auto-hidden during 5s Zen Mode).
