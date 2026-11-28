@@ -22,7 +22,7 @@
             </div>
             <div class="header-actions">
                 <div class="status-pill" id="engine-status">Engine Ready</div>
-                <button id="btn-settings" class="btn secondary small" type="button">Settings (&#9881;)</button>
+                <button id="btn-settings" class="btn secondary small" type="button">&#9881; Settings</button>
             </div>
         </header>
 
@@ -127,7 +127,10 @@
             <div class="form-grid">
                 <div class="field">
                     <label for="settings-tours-directory">Tours Directory</label>
-                    <input type="text" id="settings-tours-directory" placeholder="./tours">
+                    <div class="directory-picker">
+                        <input type="text" id="settings-tours-directory" placeholder="./tours">
+                        <button id="btn-browse-folder" class="btn secondary small" type="button">Browse...</button>
+                    </div>
                 </div>
                 <div class="field">
                     <label for="settings-bg-interval">Background Slideshow Interval (ms)</label>

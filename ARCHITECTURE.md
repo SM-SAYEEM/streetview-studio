@@ -49,10 +49,11 @@ StreetView_Studio_v2/               # Portable root folder (safe to rename/move 
 
 ## 5. Implemented Backend REST API (`server.py`)
 - `GET /api/config` & `POST /api/config`: Reads or atomically saves `config.json`. Missing config is created at server startup with default tours path, slideshow interval, Zen timeout, and panorama zoom.
+- `GET /api/browse-folder`: Opens the native Windows folder picker with `tkinter.filedialog.askdirectory()` and returns the selected tours directory or a cancelled response.
 - `GET /api/tours`: Scans `tours/*` for valid `tour_data.json`, calculates total MB size, and returns start/end GPS coordinates.
 - `GET /api/backgrounds`: Scans `studio/backgrounds/` for `.jpg/.jpeg/.png/.webp` files.
-- `POST /api/scan`: Extracts `@lat,lon` from Start & End Google Maps URLs, traverses `pano.links` using weighted target+momentum bearing (`score = diff_target*0.6 + diff_momentum*0.4`), and returns panorama count + estimated disk size (`count * 13.5 MB`).
-- `POST /api/download`: Downloads `zoom=5` panoramas in a daemon thread and flushes `tour_data.json` incrementally after each image.
+- `POST /api/scan`: Extracts `@lat,lon` from Start & End Google Maps URLs, traverses `pano.links` using weighted target+momentum bearing (`score = diff_target*0.6 + diff_momentum*0.4`), ensures the final destination panorama is included, and estimates disk size from config quality (`Zoom 5: 13.5 MB`, `Zoom 4: 4.5 MB`, `Zoom 3: 1.2 MB` per image).
+- `POST /api/download`: Downloads panoramas using `config.json`'s `default_zoom_level` in a daemon thread and flushes `tour_data.json` incrementally after each image.
 - `GET /api/status`: Exposes live background worker progress (`active`, `current`, `total`, `message`).
 - `POST /api/extend`: Appends panoramas forward from the last entry in `tour_data.json` using a numeric limit and an optional `end_link` for junction steering.
 - `POST /api/trim`: Removes a `first` or `last` panorama entry and its on-disk image from a tour. `POST /api/trim-last` remains as a backward-compatible alias for trimming the last image. Both refuse to trim a tour with only one image and reject trimming while a background operation is active.

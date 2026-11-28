@@ -341,6 +341,24 @@ document.getElementById('btn-settings-cancel').addEventListener('click', () => {
     document.getElementById('settings-modal').classList.add('hidden');
 });
 
+document.getElementById('btn-browse-folder').addEventListener('click', async () => {
+    const browseButton = document.getElementById('btn-browse-folder');
+    browseButton.disabled = true;
+    try {
+        const res = await fetch('/api/browse-folder');
+        const data = await res.json();
+        if (data.ok && data.path) {
+            document.getElementById('settings-tours-directory').value = data.path;
+        } else if (!data.cancelled) {
+            alert(data.error || "Could not open the folder picker.");
+        }
+    } catch (err) {
+        alert("Server error.");
+    } finally {
+        browseButton.disabled = false;
+    }
+});
+
 document.getElementById('btn-settings-save').addEventListener('click', async () => {
     const payload = {
         tours_directory: document.getElementById('settings-tours-directory').value.trim(),

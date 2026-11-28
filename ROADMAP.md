@@ -17,6 +17,17 @@
     3. `zen_mode_timeout_ms`: Viewer auto-hide HUD delay (default: `5000`).
     4. `default_zoom_level`: Panorama download quality (`5` = Ultra 13K, `4` = High ~6K, `3` = Medium ~3K).
 
+- [x] **Task 1.1b: UI Polish, Folder Browse Dialog & Dynamic Size Estimation**
+  - **Header & Button Polish (`studio/index.html`, `studio/style.css`):**
+    - Place the `Engine Ready` pill and `⚙ Settings` button side-by-side horizontally; format label cleanly as `⚙ Settings` (no parentheses).
+    - Add hover styles to `.btn.small` (fixing the `Refresh List` button hover state).
+    - Enforce a consistent vertical layout inside `.tour-item` cards (`flex-direction: column; align-items: flex-start`) so action buttons stay aligned in the exact same position regardless of tour title length.
+  - **Native Folder Picker (`server.py`, `studio/index.html`, `studio/studio.js`):**
+    - Add a **`Browse...`** button next to the `Tours Directory` input in the Settings modal, backed by a `GET /api/browse-folder` endpoint in `server.py` using Python's built-in `tkinter.filedialog.askdirectory()`.
+  - **Accurate Quality-Based Size & Endpoint Count (`server.py`):**
+    - Fix `trace_road_panos` so the final destination panorama (`end_pano`) is appended to `results` before breaking out of the loop (eliminating the off-by-one missing end panorama).
+    - Update `POST /api/scan` to calculate estimated disk space dynamically based on `config.json`'s `default_zoom_level` (`Zoom 5`: `13.5 MB/img`, `Zoom 4`: `4.5 MB/img`, `Zoom 3`: `1.2 MB/img`).
+
 - [x] **Task 1.2: One-Click "Remove Last Image" (`POST /api/trim-last`)**
   - Add a **"Trim Last (-1)"** button on each tour card in the dashboard (`studio/index.html`, `studio/studio.js`) and a `/api/trim-last` endpoint in `server.py`.
   - Safely deletes the final panorama file on disk and pops the last entry from `tour_data.json` (preventing deletion if only 1 image remains).

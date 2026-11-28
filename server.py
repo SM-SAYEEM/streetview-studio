@@ -4,6 +4,8 @@ import json
 import math
 import shutil
 import threading
+import tkinter as tk
+from tkinter import filedialog
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from streetlevel import streetview
@@ -130,6 +132,11 @@ def trace_road_panos(start_lat, start_lon, end_lat=None, end_lon=None, initial_b
         if end_pano and detail.id == end_pano.id:
             break
         if end_lat and end_lon and haversine_meters(detail.lat, detail.lon, end_lat, end_lon) < 15:
+            if end_pano and end_pano.id not in visited:
+                visited.add(end_pano.id)
+                end_detail = streetview.find_panorama_by_id(end_pano.id)
+                if end_detail:
+                    results.append(end_detail)
             break
 
         # শেষ বিন্দু দেওয়া থাকলে সেদিকে দিক আপডেট করা, নাহলে রাস্তার স্বাভাবিক বাঁক অনুসরণ করা
@@ -288,7 +295,24 @@ class StudioHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
-        if parsed.path == "/api/config":
+        if parsed.path == "/api/browse-folder":
+            try:
+                root = tk.Tk()
+                root.withdraw()
+                root.attributes("-topmost", True)
+                selected = filedialog.askdirectory(
+                    parent=root,
+                    title="Select Tours Directory",
+                    initialdir=TOURS_DIR
+                )
+                root.destroy()
+                if selected:
+                    self.send_json({"ok": True, "path": selected})
+                else:
+                    self.send_json({"ok": False, "cancelled": True})
+            except Exception as e:
+                self.send_json({"ok": False, "error": f"Folder picker unavailable: {str(e)}"}, 500)
+        elif parsed.path == "/api/config":
             self.send_json({"ok": True, "config": CONFIG})
         elif parsed.path == "/api/tours":
             tours = []
@@ -375,7 +399,8 @@ class StudioHandler(SimpleHTTPRequestHandler):
             if not s_lat or not e_lat:
                 return self.send_json({"ok": False, "error": "Invalid Google Maps URLs. Ensure @lat,lon is in the link."}, 400)
             panos = trace_road_panos(s_lat, s_lon, e_lat, e_lon, max_limit=250)
-            est_mb = round(len(panos) * 13.5, 1)
+            mb_per_image = {5: 13.5, 4: 4.5, 3: 1.2}.get(CONFIG["default_zoom_level"], 13.5)
+            est_mb = round(len(panos) * mb_per_image, 1)
             self.send_json({"ok": True, "count": len(panos), "est_mb": est_mb})
 
         elif parsed.path == "/api/download":
