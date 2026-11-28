@@ -1,4 +1,4 @@
-# StreetView Studio v2.0
+# StreetView Studio v2.1.0
 
 An offline-first, portable desktop web studio for archiving historical Google Street View 360° equirectangular panoramas along any road path at maximum original resolution (`zoom=5`) and exploring them in a cinematic, browser-based virtual driving viewer.
 

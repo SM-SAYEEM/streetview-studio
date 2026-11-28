@@ -556,7 +556,7 @@ class StudioHandler(SimpleHTTPRequestHandler):
             self.send_json({"ok": False, "error": "Tour folder not found."}, 404)
 
 if __name__ == "__main__":
-    print(f"StreetView Studio v2.0 running at http://localhost:{PORT}")
+    print(f"StreetView Studio v2.1.0 running at http://localhost:{PORT}")
     print("Keep this window open while using the Studio. Press Ctrl+C to stop.")
     server = HTTPServer(("127.0.0.1", PORT), StudioHandler)
     server.serve_forever()

@@ -1,4 +1,4 @@
-# StreetView Studio v2.0 — পূর্ণাঙ্গ ব্যবহারবিধি
+# StreetView Studio v2.1.0 — পূর্ণাঙ্গ ব্যবহারবিধি
 **Developed by: Md Sayeem Sheikh**
 
 ## ১. নতুন কম্পিউটারে সেটআপ (যদি কখনো পিসি বদলানো হয়)
