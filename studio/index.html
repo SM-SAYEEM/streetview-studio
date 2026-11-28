@@ -20,7 +20,10 @@
                     <p class="subtitle">Offline 360° Road Archiver &amp; Virtual Tour Engine &bull; Crafted by <strong>Md Sayeem Sheikh</strong></p>
                 </div>
             </div>
-            <div class="status-pill" id="engine-status">Engine Ready</div>
+            <div class="header-actions">
+                <div class="status-pill" id="engine-status">Engine Ready</div>
+                <button id="btn-settings" class="btn secondary small" type="button">Settings (&#9881;)</button>
+            </div>
         </header>
 
         <!-- নতুন ট্যুর তৈরি ও স্ক্যান প্যানেল -->
@@ -113,6 +116,39 @@
                 <button id="btn-trim-cancel" class="btn secondary">Cancel</button>
                 <button id="btn-trim-first" class="btn danger">First Point (Start)</button>
                 <button id="btn-trim-last" class="btn danger">Last Point (End)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- External Settings মডাল -->
+    <div id="settings-modal" class="modal-backdrop hidden">
+        <div class="card modal-card">
+            <h2>Settings</h2>
+            <div class="form-grid">
+                <div class="field">
+                    <label for="settings-tours-directory">Tours Directory</label>
+                    <input type="text" id="settings-tours-directory" placeholder="./tours">
+                </div>
+                <div class="field">
+                    <label for="settings-bg-interval">Background Slideshow Interval (ms)</label>
+                    <input type="number" id="settings-bg-interval" min="1000" step="500" value="8000">
+                </div>
+                <div class="field">
+                    <label for="settings-zen-timeout">Viewer Zen Timeout (ms)</label>
+                    <input type="number" id="settings-zen-timeout" min="500" step="500" value="5000">
+                </div>
+                <div class="field">
+                    <label for="settings-default-zoom">Default Panorama Download Quality</label>
+                    <select id="settings-default-zoom">
+                        <option value="5">5 - Ultra 13K</option>
+                        <option value="4">4 - High ~6K</option>
+                        <option value="3">3 - Medium ~3K</option>
+                    </select>
+                </div>
+            </div>
+            <div class="action-row modal-actions">
+                <button id="btn-settings-cancel" class="btn secondary">Cancel</button>
+                <button id="btn-settings-save" class="btn primary">Save Settings</button>
             </div>
         </div>
     </div>

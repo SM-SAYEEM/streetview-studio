@@ -17,10 +17,12 @@ let bgInterval = null;
 let extendingTourName = "";
 let trimmingTourName = "";
 let trimmingTourCount = 0;
+let bgSlideIntervalMs = 8000;
 
 window.addEventListener('DOMContentLoaded', () => {
     loadTours();
     checkActiveDownload();
+    loadSettings();
 });
 
 btnRefresh.addEventListener('click', loadTours);
@@ -173,7 +175,7 @@ async function setupDynamicBackground(tours) {
             bgIndex = (bgIndex + 1) % validUrls.length;
             bgLayer.style.backgroundImage = `url("${validUrls[bgIndex]}")`;
         }
-    }, 8000);
+    }, bgSlideIntervalMs);
 }
 
 function renderTours(tours) {
@@ -313,3 +315,56 @@ async function confirmTrim(side) {
 
 document.getElementById('btn-trim-first').addEventListener('click', () => confirmTrim('first'));
 document.getElementById('btn-trim-last').addEventListener('click', () => confirmTrim('last'));
+
+async function loadSettings() {
+    try {
+        const res = await fetch('/api/config');
+        const data = await res.json();
+        if (!data.ok) return;
+        applySettingsToModal(data.config);
+        bgSlideIntervalMs = data.config.bg_slide_interval_ms;
+    } catch (err) {}
+}
+
+function applySettingsToModal(config) {
+    document.getElementById('settings-tours-directory').value = config.tours_directory;
+    document.getElementById('settings-bg-interval').value = config.bg_slide_interval_ms;
+    document.getElementById('settings-zen-timeout').value = config.zen_mode_timeout_ms;
+    document.getElementById('settings-default-zoom').value = String(config.default_zoom_level);
+}
+
+document.getElementById('btn-settings').addEventListener('click', () => {
+    document.getElementById('settings-modal').classList.remove('hidden');
+});
+
+document.getElementById('btn-settings-cancel').addEventListener('click', () => {
+    document.getElementById('settings-modal').classList.add('hidden');
+});
+
+document.getElementById('btn-settings-save').addEventListener('click', async () => {
+    const payload = {
+        tours_directory: document.getElementById('settings-tours-directory').value.trim(),
+        bg_slide_interval_ms: parseInt(document.getElementById('settings-bg-interval').value, 10),
+        zen_mode_timeout_ms: parseInt(document.getElementById('settings-zen-timeout').value, 10),
+        default_zoom_level: parseInt(document.getElementById('settings-default-zoom').value, 10)
+    };
+
+    try {
+        const res = await fetch('/api/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!data.ok) {
+            alert(data.error || "Could not save settings.");
+            return;
+        }
+        bgSlideIntervalMs = data.config.bg_slide_interval_ms;
+        applySettingsToModal(data.config);
+        document.getElementById('settings-modal').classList.add('hidden');
+        loadTours();
+    } catch (err) {
+        alert("Server error.");
+    }
+});

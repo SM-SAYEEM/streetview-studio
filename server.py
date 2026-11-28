@@ -11,7 +11,52 @@ from streetlevel import streetview
 PORT = 8080
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STUDIO_DIR = os.path.join(BASE_DIR, "studio")
-TOURS_DIR = os.path.join(BASE_DIR, "tours")
+CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
+
+DEFAULT_CONFIG = {
+    "tours_directory": "./tours",
+    "bg_slide_interval_ms": 8000,
+    "zen_mode_timeout_ms": 5000,
+    "default_zoom_level": 5
+}
+
+def resolve_tours_directory(path_value):
+    path_value = str(path_value).strip() or DEFAULT_CONFIG["tours_directory"]
+    return path_value if os.path.isabs(path_value) else os.path.abspath(os.path.join(BASE_DIR, path_value))
+
+def load_config():
+    config = dict(DEFAULT_CONFIG)
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                stored = json.load(f)
+            if isinstance(stored, dict):
+                for key in DEFAULT_CONFIG:
+                    if key in stored:
+                        config[key] = stored[key]
+        except (json.JSONDecodeError, OSError):
+            pass
+    else:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+
+    try:
+        config["bg_slide_interval_ms"] = max(1000, int(config["bg_slide_interval_ms"]))
+    except (TypeError, ValueError):
+        config["bg_slide_interval_ms"] = DEFAULT_CONFIG["bg_slide_interval_ms"]
+    try:
+        config["zen_mode_timeout_ms"] = max(500, int(config["zen_mode_timeout_ms"]))
+    except (TypeError, ValueError):
+        config["zen_mode_timeout_ms"] = DEFAULT_CONFIG["zen_mode_timeout_ms"]
+    try:
+        config["default_zoom_level"] = min(5, max(3, int(config["default_zoom_level"])))
+    except (TypeError, ValueError):
+        config["default_zoom_level"] = DEFAULT_CONFIG["default_zoom_level"]
+    config["tours_directory"] = str(config["tours_directory"]).strip() or DEFAULT_CONFIG["tours_directory"]
+    return config
+
+CONFIG = load_config()
+TOURS_DIR = resolve_tours_directory(CONFIG["tours_directory"])
 
 os.makedirs(STUDIO_DIR, exist_ok=True)
 os.makedirs(TOURS_DIR, exist_ok=True)
@@ -133,7 +178,7 @@ def background_download_worker(tour_name, pano_list, existing_data=None):
             download_status["message"] = f"Downloading {filename} ({i+1}/{len(pano_list)})..."
 
             if not os.path.exists(filepath):
-                streetview.download_panorama(detail, filepath, zoom=5)
+                streetview.download_panorama(detail, filepath, zoom=CONFIG["default_zoom_level"])
 
             tour_data.append({
                 "id": detail.id,
@@ -243,7 +288,9 @@ class StudioHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
-        if parsed.path == "/api/tours":
+        if parsed.path == "/api/config":
+            self.send_json({"ok": True, "config": CONFIG})
+        elif parsed.path == "/api/tours":
             tours = []
             for name in sorted(os.listdir(TOURS_DIR)):
                 t_path = os.path.join(TOURS_DIR, name)
@@ -282,7 +329,47 @@ class StudioHandler(SimpleHTTPRequestHandler):
         payload = json.loads(self.rfile.read(length).decode("utf-8")) if length else {}
         parsed = urlparse(self.path)
 
-        if parsed.path == "/api/scan":
+        if parsed.path == "/api/config":
+            if download_status["active"]:
+                return self.send_json({"ok": False, "error": "A download is already running. Settings can be changed after it finishes."}, 409)
+
+            tours_directory = str(payload.get("tours_directory", CONFIG["tours_directory"])).strip()
+            if not tours_directory:
+                return self.send_json({"ok": False, "error": "Tours directory cannot be empty."}, 400)
+            try:
+                bg_interval = max(1000, int(payload.get("bg_slide_interval_ms", CONFIG["bg_slide_interval_ms"])))
+                zen_timeout = max(500, int(payload.get("zen_mode_timeout_ms", CONFIG["zen_mode_timeout_ms"])))
+                zoom_level = int(payload.get("default_zoom_level", CONFIG["default_zoom_level"]))
+            except (TypeError, ValueError):
+                return self.send_json({"ok": False, "error": "Numeric settings contain invalid values."}, 400)
+            if zoom_level not in (3, 4, 5):
+                return self.send_json({"ok": False, "error": "Default zoom level must be 3, 4, or 5."}, 400)
+
+            next_config = {
+                "tours_directory": tours_directory,
+                "bg_slide_interval_ms": bg_interval,
+                "zen_mode_timeout_ms": zen_timeout,
+                "default_zoom_level": zoom_level
+            }
+            try:
+                temp_config = CONFIG_FILE + ".tmp"
+                with open(temp_config, "w", encoding="utf-8") as f:
+                    json.dump(next_config, f, indent=2)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(temp_config, CONFIG_FILE)
+            except OSError as e:
+                if os.path.exists(CONFIG_FILE + ".tmp"):
+                    os.remove(CONFIG_FILE + ".tmp")
+                return self.send_json({"ok": False, "error": f"Could not save config.json: {str(e)}"}, 500)
+
+            CONFIG.clear()
+            CONFIG.update(next_config)
+            globals()["TOURS_DIR"] = resolve_tours_directory(CONFIG["tours_directory"])
+            os.makedirs(TOURS_DIR, exist_ok=True)
+            self.send_json({"ok": True, "config": CONFIG})
+
+        elif parsed.path == "/api/scan":
             s_lat, s_lon = extract_coords(payload.get("start_link", ""))
             e_lat, e_lon = extract_coords(payload.get("end_link", ""))
             if not s_lat or not e_lat:

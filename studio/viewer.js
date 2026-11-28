@@ -7,13 +7,24 @@ let currentIndex = 0;
 let isTransitioning = false;
 let autopilotTimer = null;
 let idleTimer = null;
+let zenModeTimeoutMs = 5000;
 
 if (!tourName) {
     document.getElementById('tour-title').innerText = "No tour selected";
 } else {
     document.title = `${tourName} - StreetView Tour`;
     document.getElementById('tour-title').innerText = tourName;
-    loadTourData();
+    loadZenConfig().finally(loadTourData);
+}
+
+async function loadZenConfig() {
+    try {
+        const res = await fetch('/api/config');
+        const data = await res.json();
+        if (data.ok && data.config) {
+            zenModeTimeoutMs = data.config.zen_mode_timeout_ms;
+        }
+    } catch (err) {}
 }
 
 function loadTourData() {
@@ -202,7 +213,7 @@ function resetIdleTimer() {
     clearTimeout(idleTimer);
     idleTimer = setTimeout(() => {
         document.body.classList.add('zen-mode');
-    }, 5000);
+    }, zenModeTimeoutMs);
 }
 
 function setupControls() {

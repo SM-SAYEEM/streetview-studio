@@ -48,6 +48,7 @@ StreetView_Studio_v2/               # Portable root folder (safe to rename/move 
 4. **Validated Background Slideshow:** `studio.js` encodes image URLs (`encodeURI`) and validates each image via `Image.onload` before adding to the rotation to prevent black screen frames on corrupt/unsupported formats.
 
 ## 5. Implemented Backend REST API (`server.py`)
+- `GET /api/config` & `POST /api/config`: Reads or atomically saves `config.json`. Missing config is created at server startup with default tours path, slideshow interval, Zen timeout, and panorama zoom.
 - `GET /api/tours`: Scans `tours/*` for valid `tour_data.json`, calculates total MB size, and returns start/end GPS coordinates.
 - `GET /api/backgrounds`: Scans `studio/backgrounds/` for `.jpg/.jpeg/.png/.webp` files.
 - `POST /api/scan`: Extracts `@lat,lon` from Start & End Google Maps URLs, traverses `pano.links` using weighted target+momentum bearing (`score = diff_target*0.6 + diff_momentum*0.4`), and returns panorama count + estimated disk size (`count * 13.5 MB`).

@@ -1,0 +1,6 @@
+{
+  "tours_directory": "./tours",
+  "bg_slide_interval_ms": 8000,
+  "zen_mode_timeout_ms": 5000,
+  "default_zoom_level": 5
+}

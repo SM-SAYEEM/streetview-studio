@@ -9,7 +9,7 @@
 
 ## Milestone 1: `v2.1.0` — Smart Settings, Controls & Path Editing
 
-- [ ] **Task 1.1: External Settings & Custom Storage Path (`config.json`)**
+- [x] **Task 1.1: External Settings & Custom Storage Path (`config.json`)**
   - Create a `config.json` file (auto-generated with defaults if missing) and add a **Settings (⚙️)** modal in `studio/index.html` & `studio/studio.js`.
   - Configurable options:
     1. `tours_directory`: Custom path where road tours are stored (default: `"./tours"`). Updating this lets users store gigabytes of panoramas on any external drive while keeping the app engine lightweight.
