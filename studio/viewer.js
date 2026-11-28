@@ -1,10 +1,16 @@
 const params = new URLSearchParams(window.location.search);
 const tourName = params.get('tour');
 const transitionOverlay = document.getElementById('transition-overlay');
+const routeMap = document.getElementById('route-map');
+const routeMapCanvas = document.getElementById('route-map-canvas');
 
 let viewer = null;
 let tourData = [];
 let currentIndex = 0;
+let routeMapContext = null;
+let routeMapPoints = [];
+let routeMapWidth = 0;
+let routeMapHeight = 0;
 let isTransitioning = false;
 const preloadedImages = new Map();
 let cameraFrame = null;
@@ -35,6 +41,8 @@ let cameraRotation = {
     lastFrameAt: 0
 };
 
+setupRouteMap();
+
 if (!tourName) {
     document.getElementById('tour-title').innerText = "No tour selected";
 } else {
@@ -58,6 +66,7 @@ function loadTourData() {
         .then(res => res.json())
         .then(data => {
             tourData = data;
+            resizeRouteMap();
             initViewer();
         })
         .catch(err => {
@@ -92,6 +101,7 @@ function initViewer() {
     });
     viewer.on('load', handleViewerLoad);
     viewer.on('error', handleViewerError);
+    viewer.on('animatefinished', drawMiniMap);
     viewerLoaded = viewer.isLoaded();
 
     buildMinimap();
@@ -219,6 +229,216 @@ function updateUI(idx) {
             el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         }
     });
+    drawMiniMap();
+}
+
+function setupRouteMap() {
+    routeMapCanvas.addEventListener('click', jumpToNearestRoutePoint);
+    document.getElementById('route-map-collapse').addEventListener('click', toggleRouteMapCollapse);
+    document.getElementById('route-map-toggle').addEventListener('click', toggleRouteMapVisibility);
+    window.addEventListener('keydown', (event) => {
+        if ((event.key === 'm' || event.key === 'M') &&
+            !(event.target instanceof HTMLElement && (
+                event.target.isContentEditable ||
+                ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)
+            ))) {
+            event.preventDefault();
+            toggleRouteMapVisibility();
+            resetIdleTimer();
+        }
+    }, true);
+    window.addEventListener('resize', resizeRouteMap, { passive: true });
+    resizeRouteMap();
+    drawMiniMap();
+}
+
+function resizeRouteMap() {
+    const rect = routeMapCanvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    const pixelWidth = Math.round(rect.width * pixelRatio);
+    const pixelHeight = Math.round(rect.height * pixelRatio);
+    if (routeMapCanvas.width !== pixelWidth || routeMapCanvas.height !== pixelHeight) {
+        routeMapCanvas.width = pixelWidth;
+        routeMapCanvas.height = pixelHeight;
+    }
+
+    routeMapContext = routeMapCanvas.getContext('2d');
+    if (!routeMapContext) {
+        console.error('Could not initialize the route map canvas context.');
+        return;
+    }
+    routeMapContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    routeMapWidth = rect.width;
+    routeMapHeight = rect.height;
+
+    const hasCompleteCoordinates = tourData.length > 0 && tourData.every(item => {
+        if (!item || item.lat === null || item.lat === undefined ||
+            item.lon === null || item.lon === undefined ||
+            String(item.lat).trim() === '' || String(item.lon).trim() === '') return false;
+        const lat = Number(item.lat);
+        const lon = Number(item.lon);
+        return Number.isFinite(lat) && Number.isFinite(lon) &&
+            lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+    });
+    const coordinates = hasCompleteCoordinates
+        ? tourData.map((item, index) => ({
+            index,
+            lat: Number(item.lat),
+            lon: Number(item.lon)
+        }))
+        : tourData.map((item, index) => ({
+            index,
+            x: index,
+            y: Math.sin(index * 0.7)
+        }));
+
+    if (coordinates.length === 0) {
+        routeMapPoints = [];
+        drawMiniMap();
+        return;
+    }
+
+    if (hasCompleteCoordinates) {
+        const meanLatitude = coordinates.reduce((sum, point) => sum + point.lat, 0) / coordinates.length;
+        const longitudeScale = Math.cos(meanLatitude * Math.PI / 180);
+        coordinates.forEach(point => {
+            point.x = point.lon * longitudeScale;
+            point.y = point.lat;
+        });
+    }
+
+    const bounds = coordinates.reduce((result, point) => ({
+        minX: Math.min(result.minX, point.x),
+        maxX: Math.max(result.maxX, point.x),
+        minY: Math.min(result.minY, point.y),
+        maxY: Math.max(result.maxY, point.y)
+    }), { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
+    const padding = 26;
+    const spanX = bounds.maxX - bounds.minX;
+    const spanY = bounds.maxY - bounds.minY;
+    const scale = Math.min(
+        (routeMapWidth - padding * 2) / (spanX || 1),
+        (routeMapHeight - padding * 2) / (spanY || 1)
+    );
+    const offsetX = (routeMapWidth - spanX * scale) / 2;
+    const offsetY = (routeMapHeight - spanY * scale) / 2;
+
+    routeMapPoints = coordinates.map(point => ({
+        index: point.index,
+        x: offsetX + (point.x - bounds.minX) * scale,
+        y: routeMapHeight - offsetY - (point.y - bounds.minY) * scale
+    }));
+    drawMiniMap();
+}
+
+function drawMiniMap() {
+    if (!routeMapContext || routeMap.classList.contains('map-hidden') ||
+        routeMap.classList.contains('collapsed')) return;
+
+    const context = routeMapContext;
+    context.clearRect(0, 0, routeMapWidth, routeMapHeight);
+    if (routeMapPoints.length === 0) {
+        context.fillStyle = 'rgba(203, 213, 225, 0.8)';
+        context.font = '12px sans-serif';
+        context.textAlign = 'center';
+        context.fillText('No route coordinates', routeMapWidth / 2, routeMapHeight / 2);
+        return;
+    }
+
+    context.beginPath();
+    routeMapPoints.forEach((point, index) => {
+        if (index === 0) context.moveTo(point.x, point.y);
+        else context.lineTo(point.x, point.y);
+    });
+    context.lineWidth = 2.5;
+    context.lineJoin = 'round';
+    context.lineCap = 'round';
+    context.strokeStyle = '#38bdf8';
+    context.stroke();
+
+    drawRouteMapMarker(routeMapPoints[0], '#34d399', 4);
+    if (routeMapPoints.length > 1) {
+        drawRouteMapMarker(routeMapPoints[routeMapPoints.length - 1], '#fb7185', 4);
+    }
+
+    const currentPoint = routeMapPoints.find(point => point.index === currentIndex);
+    if (!currentPoint) return;
+
+    const bearing = getWorldCompassBearing();
+    if (bearing !== null) {
+        const direction = (bearing - 90) * Math.PI / 180;
+        const coneRadius = 24;
+        context.beginPath();
+        context.moveTo(currentPoint.x, currentPoint.y);
+        context.arc(currentPoint.x, currentPoint.y, coneRadius, direction - 0.32, direction + 0.32);
+        context.closePath();
+        context.fillStyle = 'rgba(250, 204, 21, 0.2)';
+        context.fill();
+        context.strokeStyle = 'rgba(250, 204, 21, 0.55)';
+        context.lineWidth = 1;
+        context.stroke();
+    }
+    drawRouteMapMarker(currentPoint, '#facc15', 5);
+}
+
+function drawRouteMapMarker(point, color, radius) {
+    const context = routeMapContext;
+    context.beginPath();
+    context.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    context.fillStyle = color;
+    context.fill();
+    context.lineWidth = 1.5;
+    context.strokeStyle = 'rgba(15, 23, 42, 0.9)';
+    context.stroke();
+}
+
+function getWorldCompassBearing() {
+    if (!viewer || !tourData[currentIndex]) return null;
+    const heading = Number(tourData[currentIndex].heading);
+    if (!Number.isFinite(heading)) return null;
+    return (heading * 180 / Math.PI + viewer.getYaw() + 360) % 360;
+}
+
+function jumpToNearestRoutePoint(event) {
+    if (routeMapPoints.length === 0) return;
+    const rect = routeMapCanvas.getBoundingClientRect();
+    const clickX = event.clientX - rect.left;
+    const clickY = event.clientY - rect.top;
+    let nearestPoint = routeMapPoints[0];
+    let nearestDistance = Infinity;
+
+    routeMapPoints.forEach(point => {
+        const dx = point.x - clickX;
+        const dy = point.y - clickY;
+        const distance = dx * dx + dy * dy;
+        if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearestPoint = point;
+        }
+    });
+
+    stopAutopilot();
+    goToStep(nearestPoint.index, false);
+}
+
+function toggleRouteMapCollapse() {
+    const button = document.getElementById('route-map-collapse');
+    const collapsed = routeMap.classList.toggle('collapsed');
+    button.textContent = collapsed ? '+' : '−';
+    button.setAttribute('aria-expanded', String(!collapsed));
+    button.setAttribute('aria-label', collapsed ? 'Expand route map' : 'Collapse route map');
+    if (!collapsed) resizeRouteMap();
+}
+
+function toggleRouteMapVisibility() {
+    const hidden = routeMap.classList.toggle('map-hidden');
+    routeMap.setAttribute('aria-hidden', String(hidden));
+    const toggle = document.getElementById('route-map-toggle');
+    toggle.setAttribute('aria-pressed', String(!hidden));
+    toggle.textContent = hidden ? 'Map' : 'Map ✓';
+    if (!hidden) resizeRouteMap();
 }
 
 // অটোপাইলট (Auto-Play) কন্ট্রোল
@@ -300,6 +520,7 @@ function handleViewerLoad() {
     viewerLoaded = true;
     cameraRotation.lastFrameAt = performance.now();
     fadeTransitionOverlay();
+    drawMiniMap();
     if (isAutopilotPlaying && autopilotWaitingForSceneLoad) {
         autopilotWaitingForSceneLoad = false;
         autopilotStartHfov = viewer.getHfov();
@@ -364,6 +585,7 @@ function animateCameraFrame(timestamp) {
         const progress = Math.min(1, (timestamp - autopilotStartedAt) / autopilotDuration);
         const hfov = autopilotStartHfov + (82 - autopilotStartHfov) * progress;
         viewer.setHfov(hfov, false);
+        drawMiniMap();
 
         if (progress === 1) {
             const nextIndex = currentIndex + 1;
@@ -394,6 +616,7 @@ function animateCameraFrame(timestamp) {
     } else if (cameraRotationActive) {
         viewer.setYaw(viewer.getYaw() + deltaYaw, false);
         viewer.setPitch(Math.max(-90, Math.min(90, viewer.getPitch() + deltaPitch)), false);
+        drawMiniMap();
     }
 
     if (rotationSettled) {
@@ -600,7 +823,14 @@ function setupControls() {
         }, { passive: true });
     });
 
-    ['mousemove', 'mousedown', 'wheel', 'touchstart'].forEach(evt => {
+    window.addEventListener('mousemove', () => {
+        resetIdleTimer();
+        if (isPointerSteering) drawMiniMap();
+    }, { passive: true });
+
+    window.addEventListener('touchmove', drawMiniMap, { passive: true });
+
+    ['mousedown', 'wheel', 'touchstart'].forEach(evt => {
         window.addEventListener(evt, resetIdleTimer, { passive: true });
     });
 }

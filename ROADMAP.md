@@ -62,9 +62,8 @@
 - [x] **Task 2.2: Continuous Zoom-Through Autopilot Motion**
   - Upgrade Autopilot in `studio/viewer.js` so that instead of waiting statically before jumping, the camera smoothly and continuously zooms forward (`hfov` animating from `100` down to `74` over the step duration via `requestAnimationFrame`), seamlessly cross-fading into the next panorama (compass-locked) at `hfov = 98` and continuing the zoom—creating a continuous video-like road trip feel. Camera yaw and pitch controls remain live during playback; pause, route end, and speed changes manage the animation loop without stale frames.
 
-- [ ] **Task 2.3: Live Interactive Route Mini-Map (`studio/viewer.html`, `viewer.js`)**
-  - Add a compact, collapsible mini-map overlay in the bottom-left corner of the viewer (auto-hidden during 5s Zen Mode).
-  - Plot the full road polyline using `lat, lon` from `tour_data.json` (using offline canvas rendering or Leaflet.js with online map tiles when available), highlight the current position marker live, and allow clicking any point on the route line to jump directly to that panorama.
+- [x] **Task 2.3: Live Interactive Route Mini-Map (`studio/viewer.html`, `viewer.js`)**
+  - Add a compact, collapsible offline canvas mini-map in the bottom-left corner of the viewer (auto-hidden during 5s Zen Mode). Plot the road from `lat, lon` in `tour_data.json` with Start/End markers, a live current-position marker and compass cone, auto-scale to the route, and jump to the nearest panorama on click. Support collapse/expand and the `M` visibility shortcut.
 
 - [ ] **Task 2.4: Ambient Village Soundscape Toggle**
   - Add an optional ambient nature/village audio toggle button in the viewer HUD (gracefully disabled if no `.mp3`/`.ogg` audio file is placed in `studio/audio/`).

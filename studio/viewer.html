@@ -23,6 +23,20 @@
     <!-- ডানপাশের স্ক্রলযোগ্য স্টেপ মিনিম্যাপ -->
     <div id="step-minimap" class="hud-element" title="Click any tick to jump"></div>
 
+    <!-- নিচের বাম পাশে অফলাইন রুট মিনিম্যাপ -->
+    <aside id="route-map" class="hud-element" aria-label="Interactive route map" aria-hidden="false" title="Press M to hide or show">
+        <div class="route-map-header">
+            <span>Route map</span>
+            <button id="route-map-collapse" type="button" aria-expanded="true" aria-label="Collapse route map">−</button>
+        </div>
+        <canvas id="route-map-canvas" width="180" height="130" tabindex="0" aria-label="Tour route; click to jump to the nearest panorama"></canvas>
+        <div class="route-map-legend" aria-hidden="true">
+            <span><i class="start"></i>Start</span>
+            <span><i class="current"></i>Current</span>
+            <span><i class="end"></i>End</span>
+        </div>
+    </aside>
+
     <!-- নিচের ড্রাইভিং ও অটোপাইলট কন্ট্রোল বার -->
     <div id="nav-controls" class="hud-element">
         <button id="btn-prev" title="Previous panorama (S / PageDown); jump to start (Home)">&#9664; Back</button>
@@ -33,6 +47,7 @@
             <option value="1500">Fast (1.5s)</option>
         </select>
         <button id="btn-sway" type="button" aria-pressed="false" title="Toggle slow Autopilot look-around">Sway</button>
+        <button id="route-map-toggle" type="button" aria-pressed="true" title="Show or hide route map (M)">Map</button>
         <button id="btn-next" title="Next panorama (W / PageUp); jump to end (End)">Forward &#9654;</button>
     </div>
 
