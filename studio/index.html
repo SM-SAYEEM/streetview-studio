@@ -155,6 +155,24 @@
                         <option value="3">3 - Medium ~3K</option>
                     </select>
                 </div>
+                <section class="field ambient-audio-settings" aria-labelledby="settings-audio-heading">
+                    <h3 id="settings-audio-heading">Ambient Audio</h3>
+                    <p class="muted">Selected audio: <strong id="settings-audio-current">None</strong></p>
+                    <label for="settings-audio-select">Choose the soundscape for viewers</label>
+                    <div class="audio-management-row">
+                        <select id="settings-audio-select" aria-label="Select ambient audio">
+                            <option value="">No audio files</option>
+                        </select>
+                        <button id="btn-audio-select" class="btn secondary small" type="button" disabled>Select</button>
+                    </div>
+                    <label for="settings-audio-file">Upload audio (.mp3, .ogg, .wav; max 100 MB)</label>
+                    <div class="audio-management-row">
+                        <input id="settings-audio-file" type="file" accept=".mp3,.ogg,.wav">
+                        <button id="btn-audio-upload" class="btn primary small" type="button">Upload</button>
+                    </div>
+                    <button id="btn-audio-remove" class="btn danger small" type="button" disabled>Remove Selected Audio</button>
+                    <p id="settings-audio-status" class="muted audio-status" role="status" aria-live="polite"></p>
+                </section>
             </div>
             <div class="action-row modal-actions">
                 <button id="btn-settings-cancel" class="btn secondary">Cancel</button>

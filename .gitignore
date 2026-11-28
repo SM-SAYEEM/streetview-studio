@@ -1,4 +1,6 @@
 tours/*
 !tours/.gitkeep
+studio/audio/*
+!studio/audio/.gitkeep
 __pycache__/
 *.pyc

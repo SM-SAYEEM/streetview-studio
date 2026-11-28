@@ -227,8 +227,9 @@ input:focus { border-color: var(--primary); }
     justify-content: center;
     z-index: 2000;
     padding: 16px;
+    overflow-y: auto;
 }
-.modal-card { max-width: 460px; width: 100%; }
+.modal-card { max-width: 520px; width: 100%; max-height: 88vh; overflow-y: auto; }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
 
 .directory-picker {
@@ -237,3 +238,31 @@ input:focus { border-color: var(--primary); }
     gap: 8px;
 }
 .directory-picker input { flex: 1; min-width: 0; }
+
+.ambient-audio-settings {
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+}
+.ambient-audio-settings h3 { font-size: 15px; color: #e2e8f0; }
+.ambient-audio-settings strong { color: #bfdbfe; overflow-wrap: anywhere; }
+.audio-management-row { display: flex; align-items: center; gap: 8px; }
+.audio-management-row select,
+.audio-management-row input[type="file"] {
+    min-width: 0;
+    flex: 1;
+    background: rgba(10, 12, 16, 0.85);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px;
+    border-radius: 8px;
+    font-size: 12px;
+}
+.audio-management-row select option { background: #181b22; color: #fff; }
+.audio-status { min-height: 20px; }
+.audio-status.error { color: #fca5a5; }
+.audio-status.success { color: #6ee7b7; }
+
+@media (max-width: 520px) {
+    .audio-management-row { align-items: stretch; flex-direction: column; }
+    .audio-management-row .btn { align-self: flex-start; }
+}

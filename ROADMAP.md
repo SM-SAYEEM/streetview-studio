@@ -65,8 +65,8 @@
 - [x] **Task 2.3: Live Interactive Route Mini-Map (`studio/viewer.html`, `viewer.js`)**
   - Add a compact, collapsible offline canvas mini-map in the bottom-left corner of the viewer (auto-hidden during 5s Zen Mode). Plot the road from `lat, lon` in `tour_data.json` with Start/End markers, a live current-position marker and compass cone, auto-scale to the route, and jump to the nearest panorama on click. Support collapse/expand and the `M` visibility shortcut.
 
-- [ ] **Task 2.4: Ambient Village Soundscape Toggle**
-  - Add an optional ambient nature/village audio toggle button in the viewer HUD (gracefully disabled if no `.mp3`/`.ogg` audio file is placed in `studio/audio/`).
+- [x] **Task 2.4: Ambient Village Soundscape Toggle**
+  - Add an optional ambient nature/village audio toggle button in the viewer HUD, backed by `GET /api/audio` and an ignored `studio/audio/` folder. Loop the first available `.mp3`/`.ogg` at low volume and explain how to enable it when no file is present.
 
 - [ ] **Task 2.5: Standalone Windows `.exe` Packaging (`PyInstaller`)**
   - Create a `build_exe.bat` script using `PyInstaller` to bundle `server.py` and `studio/` into a single portable `StreetViewStudio.exe` that auto-opens the browser on launch without requiring Python to be installed on target Windows PCs.

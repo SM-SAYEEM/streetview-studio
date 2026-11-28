@@ -11,6 +11,10 @@ let routeMapContext = null;
 let routeMapPoints = [];
 let routeMapWidth = 0;
 let routeMapHeight = 0;
+let ambientAudioUrl = null;
+let ambientAudio = null;
+let audioLookupError = null;
+let audioMessageTimer = null;
 let isTransitioning = false;
 const preloadedImages = new Map();
 let cameraFrame = null;
@@ -42,6 +46,7 @@ let cameraRotation = {
 };
 
 setupRouteMap();
+setupSoundscape();
 
 if (!tourName) {
     document.getElementById('tour-title').innerText = "No tour selected";
@@ -252,6 +257,70 @@ function setupRouteMap() {
     drawMiniMap();
 }
 
+function setupSoundscape() {
+    const soundButton = document.getElementById('btn-sound');
+    const message = document.getElementById('sound-message');
+    const audioLookup = fetch('/api/audio')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Audio lookup failed with HTTP ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (!data || typeof data.available !== 'boolean') {
+                throw new Error('Audio lookup returned an invalid response.');
+            }
+            ambientAudioUrl = data.available && typeof data.url === 'string' ? data.url : null;
+        })
+        .catch(error => {
+            audioLookupError = error;
+            console.error(error);
+        });
+
+    soundButton.addEventListener('click', async () => {
+        await audioLookup;
+        if (audioLookupError) {
+            showSoundMessage('Could not check for audio. Please try again later.');
+            return;
+        }
+        if (!ambientAudioUrl) {
+            showSoundMessage('No audio found. Add an .mp3, .ogg, or .wav file to studio/audio/.');
+            return;
+        }
+
+        if (ambientAudio && !ambientAudio.paused) {
+            ambientAudio.pause();
+            soundButton.textContent = '🔇 Sound';
+            soundButton.setAttribute('aria-pressed', 'false');
+            return;
+        }
+
+        if (!ambientAudio) {
+            ambientAudio = new Audio(ambientAudioUrl);
+            ambientAudio.loop = true;
+            ambientAudio.volume = 0.35;
+        }
+        try {
+            await ambientAudio.play();
+            soundButton.textContent = '🔊 Sound';
+            soundButton.setAttribute('aria-pressed', 'true');
+        } catch (error) {
+            console.error('Could not play ambient audio:', error);
+            showSoundMessage('Could not play the audio file. Check its format and try again.');
+        }
+    });
+
+    function showSoundMessage(text) {
+        message.textContent = text;
+        message.hidden = false;
+        clearTimeout(audioMessageTimer);
+        audioMessageTimer = setTimeout(() => {
+            message.hidden = true;
+        }, 4000);
+    }
+}
+
 function resizeRouteMap() {
     const rect = routeMapCanvas.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
@@ -339,6 +408,17 @@ function drawMiniMap() {
 
     const context = routeMapContext;
     context.clearRect(0, 0, routeMapWidth, routeMapHeight);
+    context.font = '10px sans-serif';
+    context.fillStyle = 'rgba(226, 232, 240, 0.72)';
+    context.textAlign = 'center';
+    context.textBaseline = 'top';
+    context.fillText('N', routeMapWidth / 2, 4);
+    context.textBaseline = 'bottom';
+    context.fillText('S', routeMapWidth / 2, routeMapHeight - 3);
+    context.textBaseline = 'middle';
+    context.fillText('W', 7, routeMapHeight / 2);
+    context.fillText('E', routeMapWidth - 7, routeMapHeight / 2);
+
     if (routeMapPoints.length === 0) {
         context.fillStyle = 'rgba(203, 213, 225, 0.8)';
         context.font = '12px sans-serif';

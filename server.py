@@ -6,14 +6,20 @@ import shutil
 import threading
 import tkinter as tk
 from tkinter import filedialog
+from email import policy
+from email.parser import BytesParser
 from http.server import HTTPServer, SimpleHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, quote
 from streetlevel import streetview
 
 PORT = 8080
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STUDIO_DIR = os.path.join(BASE_DIR, "studio")
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
+AUDIO_DIR = os.path.join(STUDIO_DIR, "audio")
+AUDIO_SELECTION_FILE = os.path.join(AUDIO_DIR, ".selected-audio")
+AUDIO_EXTENSIONS = (".mp3", ".ogg", ".wav")
+MAX_AUDIO_UPLOAD_BYTES = 100 * 1024 * 1024
 
 DEFAULT_CONFIG = {
     "tours_directory": "./tours",
@@ -104,6 +110,29 @@ def angle_diff(a, b):
 def sanitize_folder_name(name):
     clean = re.sub(r'[\\/*?:"<>|]', "", name).strip()
     return clean.replace(" ", "_") if clean else "Untitled_Tour"
+
+def list_audio_files():
+    os.makedirs(AUDIO_DIR, exist_ok=True)
+    return sorted(
+        (name for name in os.listdir(AUDIO_DIR)
+         if name.lower().endswith(AUDIO_EXTENSIONS)
+         and os.path.isfile(os.path.join(AUDIO_DIR, name))),
+        key=str.casefold
+    )
+
+def get_selected_audio(files=None):
+    files = list_audio_files() if files is None else files
+    try:
+        with open(AUDIO_SELECTION_FILE, "r", encoding="utf-8") as selection_file:
+            selected = selection_file.read().strip()
+    except OSError:
+        selected = ""
+    return selected if selected in files else (files[0] if files else None)
+
+def save_selected_audio(filename):
+    os.makedirs(AUDIO_DIR, exist_ok=True)
+    with open(AUDIO_SELECTION_FILE, "w", encoding="utf-8") as selection_file:
+        selection_file.write(filename or "")
 
 def trace_road_panos(start_lat, start_lon, end_lat=None, end_lon=None, initial_bearing=None, max_limit=150, skip_ids=None):
     """রাস্তার গ্রাফ ধরে স্টার্ট থেকে এন্ড পয়েন্ট পর্যন্ত প্যানোরামা লিস্ট তৈরি"""
@@ -354,16 +383,54 @@ class StudioHandler(SimpleHTTPRequestHandler):
             exts = (".jpg", ".jpeg", ".png", ".webp")
             files = [f"/backgrounds/{fn}" for fn in sorted(os.listdir(bg_dir)) if fn.lower().endswith(exts)]
             self.send_json({"images": files})
+        elif parsed.path == "/api/audio":
+            audio_files = list_audio_files()
+            selected = get_selected_audio(audio_files)
+            audio_url = f"/audio/{quote(selected)}" if selected else None
+            self.send_json({
+                "available": audio_url is not None,
+                "url": audio_url,
+                "files": audio_files,
+                "selected": selected
+            })
         else:
             super().do_GET()
 
     def do_POST(self):
         global download_status
-        length = int(self.headers.get("Content-Length", 0))
-        payload = json.loads(self.rfile.read(length).decode("utf-8")) if length else {}
         parsed = urlparse(self.path)
+        length = int(self.headers.get("Content-Length", 0))
+        if parsed.path == "/api/upload-audio":
+            self.upload_audio(length)
+            return
+        payload = json.loads(self.rfile.read(length).decode("utf-8")) if length else {}
 
-        if parsed.path == "/api/config":
+        if parsed.path == "/api/select-audio":
+            filename = payload.get("filename", "")
+            files = list_audio_files()
+            if not isinstance(filename, str) or filename not in files:
+                return self.send_json({"ok": False, "error": "Select an available audio file."}, 400)
+            try:
+                save_selected_audio(filename)
+            except OSError as e:
+                return self.send_json({"ok": False, "error": f"Could not save audio selection: {str(e)}"}, 500)
+            self.send_json({"ok": True, "selected": filename})
+
+        elif parsed.path == "/api/delete-audio":
+            filename = payload.get("filename", "")
+            files = list_audio_files()
+            if not isinstance(filename, str) or filename not in files:
+                return self.send_json({"ok": False, "error": "Select an available audio file."}, 400)
+            try:
+                os.remove(os.path.join(AUDIO_DIR, filename))
+                remaining_files = list_audio_files()
+                selected = get_selected_audio(remaining_files)
+                save_selected_audio(selected or "")
+            except OSError as e:
+                return self.send_json({"ok": False, "error": f"Could not remove audio file: {str(e)}"}, 500)
+            self.send_json({"ok": True, "files": remaining_files, "selected": selected})
+
+        elif parsed.path == "/api/config":
             if download_status["active"]:
                 return self.send_json({"ok": False, "error": "A download is already running. Settings can be changed after it finishes."}, 409)
 
@@ -554,6 +621,62 @@ class StudioHandler(SimpleHTTPRequestHandler):
                 shutil.rmtree(t_path)
                 return self.send_json({"ok": True})
             self.send_json({"ok": False, "error": "Tour folder not found."}, 404)
+
+    def upload_audio(self, content_length):
+        if content_length <= 0 or content_length > MAX_AUDIO_UPLOAD_BYTES + 1024 * 1024:
+            return self.send_json({"ok": False, "error": "Audio upload must be no larger than 100 MB."}, 413)
+
+        content_type = self.headers.get("Content-Type", "")
+        if not content_type.lower().startswith("multipart/form-data;"):
+            return self.send_json({"ok": False, "error": "Upload an audio file using multipart form data."}, 400)
+        try:
+            message = BytesParser(policy=policy.default).parsebytes(
+                f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode("ascii") +
+                self.rfile.read(content_length)
+            )
+        except (UnicodeEncodeError, ValueError):
+            return self.send_json({"ok": False, "error": "Invalid audio upload request."}, 400)
+        if not message.is_multipart():
+            return self.send_json({"ok": False, "error": "Upload an audio file using multipart form data."}, 400)
+
+        upload = next((
+            part for part in message.iter_parts()
+            if part.get_content_disposition() == "form-data" and
+            part.get_param("name", header="content-disposition") == "file"
+        ), None)
+        if upload is None:
+            return self.send_json({"ok": False, "error": "Choose an audio file to upload."}, 400)
+
+        filename = upload.get_filename()
+        if not filename:
+            return self.send_json({"ok": False, "error": "The uploaded file has no filename."}, 400)
+        filename = os.path.basename(filename.replace("\\", "/"))
+        if any(char in '<>:"/\\|?*' or ord(char) < 32 for char in filename):
+            return self.send_json({"ok": False, "error": "The uploaded filename contains unsupported characters."}, 400)
+        if not filename.lower().endswith(AUDIO_EXTENSIONS):
+            return self.send_json({"ok": False, "error": "Audio files must use .mp3, .ogg, or .wav."}, 400)
+
+        contents = upload.get_payload(decode=True) or b""
+        if not contents:
+            return self.send_json({"ok": False, "error": "The selected audio file is empty."}, 400)
+        if len(contents) > MAX_AUDIO_UPLOAD_BYTES:
+            return self.send_json({"ok": False, "error": "Audio upload must be no larger than 100 MB."}, 413)
+
+        os.makedirs(AUDIO_DIR, exist_ok=True)
+        destination = os.path.join(AUDIO_DIR, filename)
+        if os.path.exists(destination):
+            return self.send_json({"ok": False, "error": "An audio file with this name already exists."}, 409)
+
+        try:
+            with open(destination, "xb") as audio_file:
+                audio_file.write(contents)
+            save_selected_audio(filename)
+        except OSError as e:
+            if os.path.isfile(destination):
+                os.remove(destination)
+            return self.send_json({"ok": False, "error": f"Could not save audio file: {str(e)}"}, 500)
+
+        self.send_json({"ok": True, "filename": filename, "files": list_audio_files()})
 
 if __name__ == "__main__":
     print(f"StreetView Studio v2.1.0 running at http://localhost:{PORT}")

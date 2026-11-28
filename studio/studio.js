@@ -370,6 +370,9 @@ function applySettingsToModal(config) {
 
 document.getElementById('btn-settings').addEventListener('click', () => {
     document.getElementById('settings-modal').classList.remove('hidden');
+    loadAudioSettings().catch(error => {
+        alert(`Could not load audio files: ${error.message}`);
+    });
 });
 
 document.getElementById('btn-settings-cancel').addEventListener('click', () => {
@@ -421,3 +424,157 @@ document.getElementById('btn-settings-save').addEventListener('click', async () 
         alert("Server error.");
     }
 });
+
+async function loadAudioSettings() {
+    const status = document.getElementById('settings-audio-status');
+    status.textContent = 'Loading audio files...';
+    status.classList.remove('error', 'success');
+    try {
+        const res = await fetch('/api/audio', { cache: 'no-store' });
+        const data = await readAudioResponse(res, 'Audio list request');
+        if (!res.ok) throw new Error(data.error || `Audio list request failed (HTTP ${res.status}).`);
+        if (!data || !Array.isArray(data.files) ||
+            data.files.some(filename => typeof filename !== 'string')) {
+            throw new Error('Audio list response did not contain a valid file list.');
+        }
+        renderAudioSettings(data);
+        status.textContent = data.files.length ? '' : 'No ambient audio uploaded yet.';
+        return data;
+    } catch (error) {
+        status.textContent = error.message || 'Could not load audio files.';
+        status.classList.add('error');
+        throw error;
+    }
+}
+
+async function readAudioResponse(response, action) {
+    try {
+        return await response.json();
+    } catch (error) {
+        throw new Error(`${action} returned an invalid response (HTTP ${response.status}).`);
+    }
+}
+
+function renderAudioSettings(data) {
+    const select = document.getElementById('settings-audio-select');
+    const files = Array.isArray(data.files) ? data.files : [];
+    select.replaceChildren();
+    if (files.length === 0) {
+        select.add(new Option('No audio files', ''));
+    } else {
+        files.forEach(filename => select.add(new Option(filename, filename)));
+    }
+    select.value = data.selected || '';
+    document.getElementById('settings-audio-current').textContent = data.selected || 'None';
+    document.getElementById('btn-audio-select').disabled = !select.value || select.value === data.selected;
+    document.getElementById('btn-audio-remove').disabled = !select.value;
+}
+
+document.getElementById('settings-audio-select').addEventListener('change', (event) => {
+    const current = document.getElementById('settings-audio-current').textContent;
+    document.getElementById('btn-audio-select').disabled =
+        !event.target.value || event.target.value === current;
+    document.getElementById('btn-audio-remove').disabled = !event.target.value;
+});
+
+document.getElementById('btn-audio-select').addEventListener('click', async () => {
+    const filename = document.getElementById('settings-audio-select').value;
+    if (!filename) return;
+    await postAudioAction('/api/select-audio', { filename }, 'Selected ambient audio.');
+});
+
+document.getElementById('btn-audio-upload').addEventListener('click', async () => {
+    const input = document.getElementById('settings-audio-file');
+    const file = input.files[0];
+    if (!file) {
+        const message = 'Choose an audio file before clicking Upload.';
+        setAudioStatus(message, 'error');
+        alert(message);
+        return;
+    }
+    if (!/\.(mp3|ogg|wav)$/i.test(file.name)) {
+        const message = 'Choose an .mp3, .ogg, or .wav audio file.';
+        setAudioStatus(message, 'error');
+        alert(message);
+        return;
+    }
+    if (file.size > 100 * 1024 * 1024) {
+        const message = 'Audio files must be no larger than 100 MB.';
+        setAudioStatus(message, 'error');
+        alert(message);
+        return;
+    }
+
+    const button = document.getElementById('btn-audio-upload');
+    button.disabled = true;
+    setAudioStatus('Uploading audio...');
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch('/api/upload-audio', { method: 'POST', body: formData });
+        const data = await readAudioResponse(res, 'Audio upload');
+        if (!res.ok || !data.ok) {
+            throw new Error(data.error || `Audio upload failed (HTTP ${res.status}).`);
+        }
+        if (!Array.isArray(data.files) || !data.filename || !data.files.includes(data.filename)) {
+            throw new Error('Upload succeeded, but the server did not return the saved audio file list.');
+        }
+        input.value = '';
+        renderAudioSettings({ files: data.files, selected: data.filename });
+        setAudioStatus(`Uploaded and selected "${data.filename}".`, 'success');
+    } catch (error) {
+        const message = error.message || 'Could not upload audio.';
+        setAudioStatus(message, 'error');
+        alert(`Audio upload failed: ${message}`);
+    } finally {
+        button.disabled = false;
+    }
+});
+
+document.getElementById('btn-audio-remove').addEventListener('click', async () => {
+    const filename = document.getElementById('settings-audio-select').value;
+    if (!filename || !confirm(`Permanently remove "${filename}" from Ambient Audio?`)) return;
+    await postAudioAction('/api/delete-audio', { filename }, 'Removed ambient audio.');
+});
+
+async function postAudioAction(endpoint, payload, successMessage) {
+    const buttonIds = ['btn-audio-select', 'btn-audio-upload', 'btn-audio-remove'];
+    buttonIds.forEach(id => { document.getElementById(id).disabled = true; });
+    setAudioStatus('Saving audio settings...');
+    try {
+        const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await readAudioResponse(res, 'Audio settings request');
+        if (!res.ok || !data.ok) {
+            throw new Error(data.error || `Audio settings request failed (HTTP ${res.status}).`);
+        }
+        if (Array.isArray(data.files)) {
+            renderAudioSettings(data);
+        } else {
+            await loadAudioSettings();
+        }
+        setAudioStatus(successMessage, 'success');
+    } catch (error) {
+        const message = error.message || 'Could not update audio settings.';
+        setAudioStatus(message, 'error');
+        alert(`Audio settings failed: ${message}`);
+    } finally {
+        buttonIds.forEach(id => { document.getElementById(id).disabled = false; });
+        document.getElementById('btn-audio-select').disabled =
+            !document.getElementById('settings-audio-select').value ||
+            document.getElementById('settings-audio-select').value ===
+                document.getElementById('settings-audio-current').textContent;
+        document.getElementById('btn-audio-remove').disabled =
+            !document.getElementById('settings-audio-select').value;
+    }
+}
+
+function setAudioStatus(message, state = '') {
+    const status = document.getElementById('settings-audio-status');
+    status.textContent = message;
+    status.classList.remove('error', 'success');
+    if (state) status.classList.add(state);
+}

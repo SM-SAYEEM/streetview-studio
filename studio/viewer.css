@@ -324,6 +324,33 @@ body.zen-mode {
     color: #fff;
 }
 
+#nav-controls #btn-sound {
+    min-width: 82px;
+    padding: 8px 10px;
+    font-size: 12px;
+}
+
+.sound-message {
+    position: fixed;
+    left: 50%;
+    bottom: 82px;
+    z-index: 1200;
+    transform: translateX(-50%);
+    max-width: calc(100vw - 32px);
+    padding: 9px 14px;
+    color: #f8fafc;
+    background: rgba(15, 17, 22, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+    font-size: 12px;
+    text-align: center;
+}
+
+.sound-message[hidden] {
+    display: none;
+}
+
 @media (max-width: 640px) {
     #route-map {
         bottom: 92px;
