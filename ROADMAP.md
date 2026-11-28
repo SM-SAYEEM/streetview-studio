@@ -56,8 +56,8 @@
 
 ## Milestone 2: `v3.0.0` — Cinematic Video-Flow, Live Mini-Map & Standalone `.exe`
 
-- [ ] **Task 2.1: Background Image Preloader Cache (`+3` Ahead, `-1` Behind)**
-  - In `studio/viewer.js`, whenever `currentIndex` changes, asynchronously preload `currentIndex + 1`, `currentIndex + 2`, `currentIndex + 3`, and `currentIndex - 1` into memory using `new Image()` so panorama switches feel instantaneous even on older hardware.
+- [x] **Task 2.1: Background Image Preloader Cache (`+3` Ahead, `-1` Behind)**
+  - In `studio/viewer.js`, whenever `currentIndex` changes, asynchronously preload `currentIndex + 1`, `currentIndex + 2`, `currentIndex + 3`, and `currentIndex - 1` into memory using `new Image()` so panorama switches feel instantaneous even on older hardware. Keep the cache bounded to that valid index window and release images that fall outside it.
 
 - [ ] **Task 2.2: Continuous Zoom-Through Autopilot Motion**
   - Upgrade Autopilot in `studio/viewer.js` so that instead of waiting statically before jumping, the camera smoothly and continuously zooms forward (`hfov` animating from `100` down to `74` over the step duration via `requestAnimationFrame`), seamlessly cross-fading into the next panorama (compass-locked) at `hfov = 96` and continuing the zoom—creating a continuous video-like road trip feel.

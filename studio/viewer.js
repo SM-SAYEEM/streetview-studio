@@ -5,6 +5,7 @@ let viewer = null;
 let tourData = [];
 let currentIndex = 0;
 let isTransitioning = false;
+const preloadedImages = new Map();
 let autopilotTimer = null;
 let idleTimer = null;
 let zenModeTimeoutMs = 5000;
@@ -77,6 +78,7 @@ function initViewer() {
     });
 
     buildMinimap();
+    updatePreloadCache();
     updateUI(0);
     setupControls();
     resetIdleTimer();
@@ -100,6 +102,29 @@ function normalizeYaw(deg) {
     if (a > 180) a -= 360;
     if (a < -180) a += 360;
     return a;
+}
+
+function updatePreloadCache() {
+    const preloadIndexes = [currentIndex + 1, currentIndex + 2, currentIndex + 3, currentIndex - 1]
+        .filter(idx => idx >= 0 && idx < tourData.length);
+    const preloadIndexSet = new Set(preloadIndexes);
+
+    for (const [idx, image] of preloadedImages) {
+        if (!preloadIndexSet.has(idx)) {
+            image.onload = null;
+            image.onerror = null;
+            image.removeAttribute('src');
+            preloadedImages.delete(idx);
+        }
+    }
+
+    preloadIndexes.forEach(idx => {
+        if (preloadedImages.has(idx)) return;
+
+        const image = new Image();
+        preloadedImages.set(idx, image);
+        image.src = `/tours/${encodeURIComponent(tourName)}/${tourData[idx].file}`;
+    });
 }
 
 // স্মুথ জুম-ইন ট্রানজিশন + কম্পাস অ্যাঙ্গেল লক করে পরের ছবিতে যাওয়া
@@ -126,6 +151,7 @@ function goToStep(targetIdx, useZoomEffect = true) {
 
     const performSwitch = () => {
         currentIndex = targetIdx;
+        updatePreloadCache();
         viewer.loadScene("scene_" + targetIdx, currentPitch, targetYaw, currentHfov);
         updateUI(targetIdx);
         setTimeout(() => {
