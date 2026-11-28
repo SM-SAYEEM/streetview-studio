@@ -92,11 +92,18 @@
             <h2 id="extend-modal-title">Extend Tour</h2>
             <div class="form-grid">
                 <div class="field">
+                    <label for="extend-direction">Extension Direction</label>
+                    <select id="extend-direction">
+                        <option value="forward">Forward (from End)</option>
+                        <option value="backward">Backward (from Start)</option>
+                    </select>
+                </div>
+                <div class="field">
                     <label for="extend-count">Max Extra Images to Add</label>
                     <input type="number" id="extend-count" min="1" max="300" value="25">
                 </div>
                 <div class="field">
-                    <label for="extend-end-link">Target End Link (Optional — recommended if there is a junction/turn ahead)</label>
+                    <label id="extend-target-label" for="extend-end-link">Target End Link (Optional — recommended if there is a junction/turn ahead)</label>
                     <input type="text" id="extend-end-link" placeholder="Leave blank for straight road, or paste Google Maps URL...">
                 </div>
             </div>

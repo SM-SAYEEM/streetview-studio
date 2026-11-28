@@ -10,7 +10,6 @@ const progressPercent = document.getElementById('progress-percent');
 const progressFill = document.getElementById('progress-fill');
 const toursList = document.getElementById('tours-list');
 
-let pollTimer = null;
 let bgSlides = [];
 let bgIndex = 0;
 let bgInterval = null;
@@ -18,10 +17,13 @@ let extendingTourName = "";
 let trimmingTourName = "";
 let trimmingTourCount = 0;
 let bgSlideIntervalMs = 8000;
+let statusPollTimer = null;
+let downloadWasActive = false;
 
 window.addEventListener('DOMContentLoaded', () => {
     loadTours();
-    checkActiveDownload();
+    refreshServerStatus();
+    statusPollTimer = setInterval(refreshServerStatus, 1500);
     loadSettings();
 });
 
@@ -93,33 +95,49 @@ btnDownload.addEventListener('click', async () => {
 
 function startProgressPolling() {
     progressBox.classList.remove('hidden');
-    if (pollTimer) clearInterval(pollTimer);
+    downloadWasActive = true;
+    refreshServerStatus();
+}
 
-    pollTimer = setInterval(async () => {
-        try {
-            const res = await fetch('/api/status');
-            const st = await res.json();
+function setEngineStatus(state) {
+    const pill = document.getElementById('engine-status');
+    pill.classList.remove('status-ready', 'status-downloading', 'status-offline');
+    if (state === 'downloading') {
+        pill.innerText = "Downloading...";
+        pill.classList.add('status-downloading');
+    } else if (state === 'offline') {
+        pill.innerText = "Server Offline";
+        pill.classList.add('status-offline');
+    } else {
+        pill.innerText = "Engine Ready";
+        pill.classList.add('status-ready');
+    }
+}
 
+async function refreshServerStatus() {
+    try {
+        const res = await fetch('/api/status', { cache: 'no-store' });
+        if (!res.ok) throw new Error(`Status request failed: ${res.status}`);
+        const st = await res.json();
+        setEngineStatus(st.active ? 'downloading' : 'ready');
+
+        if (st.active) {
+            downloadWasActive = true;
+            progressBox.classList.remove('hidden');
             const pct = st.total > 0 ? Math.round((st.current / st.total) * 100) : 0;
             progressText.innerText = st.message;
             progressPercent.innerText = pct + "%";
             progressFill.style.width = pct + "%";
-
-            if (!st.active) {
-                clearInterval(pollTimer);
-                btnDownload.disabled = false;
+        } else {
+            btnDownload.disabled = false;
+            if (downloadWasActive) {
+                downloadWasActive = false;
                 loadTours();
             }
-        } catch (e) {
-            clearInterval(pollTimer);
         }
-    }, 1000);
-}
-
-async function checkActiveDownload() {
-    const res = await fetch('/api/status');
-    const st = await res.json();
-    if (st.active) startProgressPolling();
+    } catch (err) {
+        setEngineStatus('offline');
+    }
 }
 
 async function loadTours() {
@@ -221,7 +239,9 @@ function openViewer(tourName) {
 function extendTour(tourName) {
     extendingTourName = tourName;
     document.getElementById('extend-modal-title').innerText = `Extend "${tourName}"`;
+    document.getElementById('extend-direction').value = 'forward';
     document.getElementById('extend-end-link').value = "";
+    updateExtendTargetLabel();
     document.getElementById('extend-modal').classList.remove('hidden');
 }
 
@@ -232,20 +252,35 @@ document.getElementById('btn-extend-cancel').addEventListener('click', () => {
 document.getElementById('btn-extend-confirm').addEventListener('click', async () => {
     const extra = parseInt(document.getElementById('extend-count').value, 10) || 20;
     const endLink = document.getElementById('extend-end-link').value.trim();
+    const direction = document.getElementById('extend-direction').value;
     document.getElementById('extend-modal').classList.add('hidden');
 
-    const res = await fetch('/api/extend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: extendingTourName, extra, end_link: endLink })
-    });
-    const data = await res.json();
-    if (!data.ok) {
-        alert(data.error || "Failed to extend tour.");
-    } else {
-        startProgressPolling();
+    try {
+        const endpoint = direction === 'backward' ? '/api/prepend' : '/api/extend';
+        const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: extendingTourName, extra, end_link: endLink })
+        });
+        const data = await res.json();
+        if (!data.ok) {
+            alert(data.error || "Failed to extend tour.");
+        } else {
+            startProgressPolling();
+        }
+    } catch (err) {
+        alert("Server error.");
     }
 });
+
+function updateExtendTargetLabel() {
+    const backward = document.getElementById('extend-direction').value === 'backward';
+    document.getElementById('extend-target-label').innerText = backward
+        ? "Target Start Link (Optional — recommended if there is a junction/turn behind the start)"
+        : "Target End Link (Optional — recommended if there is a junction/turn ahead)";
+}
+
+document.getElementById('extend-direction').addEventListener('change', updateExtendTargetLabel);
 
 async function renameTour(oldName) {
     const newName = prompt("Enter new name for this tour:", oldName);

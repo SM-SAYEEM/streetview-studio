@@ -37,7 +37,7 @@
   - Clicking **`Trim (-)`** opens a choice modal/dialog to select either **First Point (Start)** or **Last Point (End)**.
   - **Mandatory Safety Confirmation:** Selecting either option must trigger an explicit confirmation prompt (`confirm(...)`) warning that the specific image will be permanently deleted from disk and cannot be undone before sending the API request. Keep at least 1 image intact.
 
-- [ ] **Task 1.3: Prepend / Extend Backward from Start Point (`POST /api/prepend`)**
+- [x] **Task 1.3: Prepend / Extend Backward from Start Point (`POST /api/prepend`)**
   - Enhance the **Extend** modal to allow choosing direction: **Forward (from End)** or **Backward (from Start)** with an optional target link.
   - Because `viewer.js` reads sequence order from `tour_data.json` array index rather than filename, new backward images can be saved as `pano_051.jpg...` and inserted at the **beginning** (`index 0`) of `tour_data.json` (reversed in travel order) without renaming existing files.
 

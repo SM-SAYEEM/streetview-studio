@@ -56,6 +56,8 @@ StreetView_Studio_v2/               # Portable root folder (safe to rename/move 
 - `POST /api/download`: Downloads panoramas using `config.json`'s `default_zoom_level` in a daemon thread and flushes `tour_data.json` incrementally after each image.
 - `GET /api/status`: Exposes live background worker progress (`active`, `current`, `total`, `message`).
 - `POST /api/extend`: Appends panoramas forward from the last entry in `tour_data.json` using a numeric limit and an optional `end_link` for junction steering.
+- `POST /api/prepend`: Traces backward from the first tour panorama using reverse route bearing and an optional target link, downloads new panoramas with non-conflicting filenames after existing indices, and prepends metadata in travel order without renaming existing files.
+- **Dashboard Engine Status:** Polls `GET /api/status`; displays green `Engine Ready`, orange `Downloading...` during background work, and red `Server Offline` when the status endpoint is unreachable.
 - `POST /api/trim`: Removes a `first` or `last` panorama entry and its on-disk image from a tour. `POST /api/trim-last` remains as a backward-compatible alias for trimming the last image. Both refuse to trim a tour with only one image and reject trimming while a background operation is active.
 - **Dashboard Trim Flow:** The `Trim (-)` card action opens a start/end choice modal. Selecting an endpoint requires an explicit irreversible-deletion `confirm(...)` before the `/api/trim` request is sent.
 - `POST /api/rename` & `POST /api/delete`: Renames or deletes tour folders inside `tours/`.

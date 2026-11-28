@@ -114,8 +114,11 @@ def trace_road_panos(start_lat, start_lon, end_lat=None, end_lon=None, initial_b
     if not current:
         return []
 
-    end_pano = streetview.find_panorama(end_lat, end_lon) if (end_lat and end_lon) else None
-    target_bearing = initial_bearing if initial_bearing is not None else get_bearing(start_lat, start_lon, end_lat, end_lon)
+    has_end = end_lat is not None and end_lon is not None
+    end_pano = streetview.find_panorama(end_lat, end_lon) if has_end else None
+    target_bearing = initial_bearing if initial_bearing is not None else (
+        get_bearing(start_lat, start_lon, end_lat, end_lon) if has_end else 0
+    )
 
     visited = set(skip_ids)
     results = []
@@ -131,7 +134,7 @@ def trace_road_panos(start_lat, start_lon, end_lat=None, end_lon=None, initial_b
         # শেষ বিন্দুতে পৌঁছে গেলে থামা
         if end_pano and detail.id == end_pano.id:
             break
-        if end_lat and end_lon and haversine_meters(detail.lat, detail.lon, end_lat, end_lon) < 15:
+        if has_end and haversine_meters(detail.lat, detail.lon, end_lat, end_lon) < 15:
             if end_pano and end_pano.id not in visited:
                 visited.add(end_pano.id)
                 end_detail = streetview.find_panorama_by_id(end_pano.id)
@@ -140,7 +143,7 @@ def trace_road_panos(start_lat, start_lon, end_lat=None, end_lon=None, initial_b
             break
 
         # শেষ বিন্দু দেওয়া থাকলে সেদিকে দিক আপডেট করা, নাহলে রাস্তার স্বাভাবিক বাঁক অনুসরণ করা
-        desired_bearing = get_bearing(detail.lat, detail.lon, end_lat, end_lon) if (end_lat and end_lon) else target_bearing
+        desired_bearing = get_bearing(detail.lat, detail.lon, end_lat, end_lon) if has_end else target_bearing
 
         best_link = None
         best_score = 999
@@ -163,13 +166,14 @@ def trace_road_panos(start_lat, start_lon, end_lat=None, end_lon=None, initial_b
 
     return results
 
-def background_download_worker(tour_name, pano_list, existing_data=None):
+def background_download_worker(tour_name, pano_list, existing_data=None, prepend=False):
     global download_status
     tour_path = os.path.join(TOURS_DIR, tour_name)
     os.makedirs(tour_path, exist_ok=True)
 
     tour_data = list(existing_data) if existing_data else []
     start_idx = len(tour_data)
+    downloaded_data = []
 
     try:
         for i, detail in enumerate(pano_list):
@@ -178,6 +182,8 @@ def background_download_worker(tour_name, pano_list, existing_data=None):
                 return
 
             idx_num = start_idx + i + 1
+            while prepend and os.path.exists(os.path.join(tour_path, f"pano_{idx_num:03d}.jpg")):
+                idx_num += 1
             filename = f"pano_{idx_num:03d}.jpg"
             filepath = os.path.join(tour_path, filename)
 
@@ -187,7 +193,7 @@ def background_download_worker(tour_name, pano_list, existing_data=None):
             if not os.path.exists(filepath):
                 streetview.download_panorama(detail, filepath, zoom=CONFIG["default_zoom_level"])
 
-            tour_data.append({
+            downloaded_data.append({
                 "id": detail.id,
                 "file": filename,
                 "lat": detail.lat,
@@ -198,7 +204,8 @@ def background_download_worker(tour_name, pano_list, existing_data=None):
 
             # প্রতি ছবি নামার সাথে সাথে JSON সেভ রাখা যাতে মাঝপথে থামলেও ডেটা নষ্ট না হয়
             with open(os.path.join(tour_path, "tour_data.json"), "w", encoding="utf-8") as f:
-                json.dump(tour_data, f, indent=2)
+                ordered_data = list(reversed(downloaded_data)) + tour_data if prepend else tour_data + downloaded_data
+                json.dump(ordered_data, f, indent=2)
 
         download_status["message"] = f"Completed! {len(pano_list)} panoramas saved."
     except Exception as e:
@@ -459,6 +466,66 @@ class StudioHandler(SimpleHTTPRequestHandler):
 
             download_status = {"active": True, "tour_name": tour_name, "current": 0, "total": len(new_panos), "message": "Extending...", "error": None}
             t = threading.Thread(target=background_download_worker, args=(tour_name, new_panos, existing_data))
+            t.daemon = True
+            t.start()
+            self.send_json({"ok": True, "total": len(new_panos)})
+
+        elif parsed.path == "/api/prepend":
+            if download_status["active"]:
+                return self.send_json({"ok": False, "error": "A download is already running."}, 400)
+
+            tour_name = payload.get("name", "")
+            try:
+                extra_count = int(payload.get("extra", 20))
+            except (TypeError, ValueError):
+                return self.send_json({"ok": False, "error": "Image count must be a positive number."}, 400)
+            if extra_count < 1:
+                return self.send_json({"ok": False, "error": "Image count must be a positive number."}, 400)
+            end_link = payload.get("end_link", "").strip()
+            e_lat, e_lon = extract_coords(end_link) if end_link else (None, None)
+
+            t_path = os.path.abspath(os.path.join(TOURS_DIR, tour_name))
+            tours_root = os.path.abspath(TOURS_DIR)
+            try:
+                if os.path.commonpath([tours_root, t_path]) != tours_root:
+                    return self.send_json({"ok": False, "error": "Invalid tour name."}, 400)
+            except ValueError:
+                return self.send_json({"ok": False, "error": "Invalid tour name."}, 400)
+
+            json_file = os.path.join(t_path, "tour_data.json")
+            if not os.path.isdir(t_path) or not os.path.isfile(json_file):
+                return self.send_json({"ok": False, "error": "Tour not found."}, 404)
+
+            try:
+                with open(json_file, "r", encoding="utf-8") as f:
+                    existing_data = json.load(f)
+            except (json.JSONDecodeError, OSError) as e:
+                return self.send_json({"ok": False, "error": f"Could not read tour data: {str(e)}"}, 500)
+            if not isinstance(existing_data, list) or not existing_data:
+                return self.send_json({"ok": False, "error": "Tour has no starting panorama."}, 400)
+
+            first = existing_data[0]
+            if not isinstance(first, dict) or "lat" not in first or "lon" not in first:
+                return self.send_json({"ok": False, "error": "Tour has invalid starting panorama coordinates."}, 500)
+
+            if len(existing_data) >= 2:
+                forward_bearing = get_bearing(first["lat"], first["lon"], existing_data[1]["lat"], existing_data[1]["lon"])
+            else:
+                forward_bearing = math.degrees(first.get("heading", 0))
+            backward_bearing = (forward_bearing + 180) % 360
+            existing_ids = {item.get("id") for item in existing_data if isinstance(item, dict)}
+            panos = trace_road_panos(
+                first["lat"], first["lon"],
+                end_lat=e_lat, end_lon=e_lon,
+                initial_bearing=backward_bearing,
+                max_limit=extra_count + 1
+            )
+            new_panos = [p for p in panos if p.id not in existing_ids][:extra_count]
+            if not new_panos:
+                return self.send_json({"ok": False, "error": "No further panoramas found behind the tour start."}, 404)
+
+            download_status = {"active": True, "tour_name": tour_name, "current": 0, "total": len(new_panos), "message": "Prepending...", "error": None}
+            t = threading.Thread(target=background_download_worker, args=(tour_name, new_panos, existing_data, True))
             t.daemon = True
             t.start()
             self.send_json({"ok": True, "total": len(new_panos)})
