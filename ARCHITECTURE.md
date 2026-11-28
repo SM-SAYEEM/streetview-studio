@@ -65,5 +65,7 @@ StreetView_Studio_v2/               # Portable root folder (safe to rename/move 
 ## 6. Implemented Viewer Engine (`studio/viewer.js`)
 - **Compass-Locked Camera:** Preserves real-world compass bearing (`worldCompassBearing = (oldHeadingDeg + currentYaw) % 360`) across scene switches.
 - **Pre-Jump Zoom Motion:** Narrows `hfov` (`currentHfov - 18` over `220ms`) before `loadScene()` on forward steps.
-- **Autopilot & Controls:** `Up`/`W` (Forward), `Down`/`S` (Backward), `Left`/`A` (Yaw Left), `Right`/`D` (Yaw Right), `Space` (Autopilot at `4000ms`/`2500ms`/`1500ms`), `F` (Fullscreen).
+- **Driving Keyboard Controls:** `W`/`PageUp` (forward), `S`/`PageDown` (backward), `A`/`D` and `ArrowLeft`/`ArrowRight` (yaw), `ArrowUp`/`ArrowDown` (pitch), `Home`/`End` (first/last panorama), `Space` (Autopilot), and `F` (Fullscreen).
+- **Smooth Keyboard Camera Rotation:** Uses `requestAnimationFrame` with `easeOutCubic` velocity ramps over 320ms; key holds sustain continuous yaw/pitch motion, and key release or window blur eases the camera to a stop.
 - **5-Second Zen Mode:** Adds `.zen-mode` after 5000ms of user inactivity to hide all HUD overlays and cursor.
+- **Dashboard Status Logging:** `StudioHandler.log_message()` suppresses HTTP request logs, including periodic `/api/status` polling.

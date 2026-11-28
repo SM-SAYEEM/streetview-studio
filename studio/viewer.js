@@ -8,6 +8,17 @@ let isTransitioning = false;
 let autopilotTimer = null;
 let idleTimer = null;
 let zenModeTimeoutMs = 5000;
+const rotatingKeys = new Set();
+let cameraRotationFrame = null;
+let cameraRotation = {
+    startYaw: 0,
+    startPitch: 0,
+    targetYaw: 0,
+    targetPitch: 0,
+    startedAt: 0,
+    duration: 320,
+    lastFrameAt: 0
+};
 
 if (!tourName) {
     document.getElementById('tour-title').innerText = "No tour selected";
@@ -216,6 +227,68 @@ function resetIdleTimer() {
     }, zenModeTimeoutMs);
 }
 
+function easeOutCubic(progress) {
+    return 1 - Math.pow(1 - progress, 3);
+}
+
+function getRotationVelocity(start, target, progress) {
+    return start + (target - start) * easeOutCubic(progress);
+}
+
+function smoothRotateCamera(deltaYaw, deltaPitch, duration = 320) {
+    if (!viewer) return;
+    if (cameraRotation.targetYaw === deltaYaw && cameraRotation.targetPitch === deltaPitch) return;
+
+    const now = performance.now();
+    const progress = Math.min(1, (now - cameraRotation.startedAt) / cameraRotation.duration);
+    const currentYawVelocity = getRotationVelocity(cameraRotation.startYaw, cameraRotation.targetYaw, progress);
+    const currentPitchVelocity = getRotationVelocity(cameraRotation.startPitch, cameraRotation.targetPitch, progress);
+
+    if (currentYawVelocity === deltaYaw && currentPitchVelocity === deltaPitch) return;
+
+    cameraRotation = {
+        startYaw: currentYawVelocity,
+        startPitch: currentPitchVelocity,
+        targetYaw: deltaYaw,
+        targetPitch: deltaPitch,
+        startedAt: now,
+        duration,
+        lastFrameAt: now
+    };
+
+    if (cameraRotationFrame === null) {
+        cameraRotationFrame = requestAnimationFrame(animateCameraRotation);
+    }
+}
+
+function animateCameraRotation(timestamp) {
+    const progress = Math.min(1, (timestamp - cameraRotation.startedAt) / cameraRotation.duration);
+    const yawVelocity = getRotationVelocity(cameraRotation.startYaw, cameraRotation.targetYaw, progress);
+    const pitchVelocity = getRotationVelocity(cameraRotation.startPitch, cameraRotation.targetPitch, progress);
+    const deltaSeconds = Math.min((timestamp - cameraRotation.lastFrameAt) / 1000, 0.05);
+    cameraRotation.lastFrameAt = timestamp;
+
+    if (deltaSeconds > 0) {
+        viewer.setYaw(viewer.getYaw() + yawVelocity * deltaSeconds, 0);
+        viewer.setPitch(Math.max(-90, Math.min(90, viewer.getPitch() + pitchVelocity * deltaSeconds)), 0);
+    }
+
+    const settled = progress === 1 && cameraRotation.targetYaw === 0 && cameraRotation.targetPitch === 0;
+    if (settled) {
+        cameraRotationFrame = null;
+        return;
+    }
+    cameraRotationFrame = requestAnimationFrame(animateCameraRotation);
+}
+
+function updateCameraRotationFromKeys() {
+    const left = rotatingKeys.has('ArrowLeft') || rotatingKeys.has('a');
+    const right = rotatingKeys.has('ArrowRight') || rotatingKeys.has('d');
+    const up = rotatingKeys.has('ArrowUp');
+    const down = rotatingKeys.has('ArrowDown');
+    smoothRotateCamera((Number(right) - Number(left)) * 72, (Number(up) - Number(down)) * 60);
+}
+
 function setupControls() {
     document.getElementById('btn-prev').addEventListener('click', () => {
         stopAutopilot();
@@ -238,25 +311,46 @@ function setupControls() {
 
     document.getElementById('btn-fullscreen').addEventListener('click', toggleFullscreen);
 
-    // ড্রাইভিং কিবোর্ড কন্ট্রোল (Up/Down = চলা, Left/Right = ক্যামেরা ঘোরানো)
+    // ড্রাইভিং কিবোর্ড কন্ট্রোল
     window.addEventListener('keydown', (e) => {
         resetIdleTimer();
 
-        if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") {
+        if (e.target instanceof HTMLElement && (
+            e.target.isContentEditable ||
+            ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)
+        )) {
+            return;
+        }
+
+        if (e.key === "w" || e.key === "W" || e.key === "PageUp") {
             e.preventDefault();
             stopAutopilot();
             goToStep(currentIndex + 1, true);
-        } else if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") {
+        } else if (e.key === "s" || e.key === "S" || e.key === "PageDown") {
             e.preventDefault();
             stopAutopilot();
             goToStep(currentIndex - 1, false);
         } else if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") {
             e.preventDefault();
-            viewer.setYaw(viewer.getYaw() - 12, 120);
+            rotatingKeys.add(e.key.length === 1 ? e.key.toLowerCase() : e.key);
+            updateCameraRotationFromKeys();
         } else if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") {
             e.preventDefault();
-            viewer.setYaw(viewer.getYaw() + 12, 120);
-        } else if (e.key === " ") {
+            rotatingKeys.add(e.key.length === 1 ? e.key.toLowerCase() : e.key);
+            updateCameraRotationFromKeys();
+        } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+            e.preventDefault();
+            rotatingKeys.add(e.key);
+            updateCameraRotationFromKeys();
+        } else if (e.key === "Home") {
+            e.preventDefault();
+            stopAutopilot();
+            goToStep(0, false);
+        } else if (e.key === "End") {
+            e.preventDefault();
+            stopAutopilot();
+            goToStep(tourData.length - 1, false);
+        } else if (e.code === "Space" || e.key === " ") {
             e.preventDefault();
             toggleAutopilot();
         } else if (e.key === "f" || e.key === "F") {
@@ -264,6 +358,21 @@ function setupControls() {
             toggleFullscreen();
         }
     }, true);
+
+    window.addEventListener('keyup', (e) => {
+        const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+        if (rotatingKeys.delete(key)) {
+            resetIdleTimer();
+            updateCameraRotationFromKeys();
+        }
+    }, true);
+
+    window.addEventListener('blur', () => {
+        if (rotatingKeys.size > 0) {
+            rotatingKeys.clear();
+            smoothRotateCamera(0, 0);
+        }
+    });
 
     ['mousemove', 'mousedown', 'wheel', 'touchstart'].forEach(evt => {
         window.addEventListener(evt, resetIdleTimer, { passive: true });

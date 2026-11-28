@@ -41,7 +41,7 @@
   - Enhance the **Extend** modal to allow choosing direction: **Forward (from End)** or **Backward (from Start)** with an optional target link.
   - Because `viewer.js` reads sequence order from `tour_data.json` array index rather than filename, new backward images can be saved as `pano_051.jpg...` and inserted at the **beginning** (`index 0`) of `tour_data.json` (reversed in travel order) without renaming existing files.
 
-- [ ] **Task 1.4: Ergonomic Two-Handed Driving Keyboard Layout (`studio/viewer.js`)**
+- [x] **Task 1.4: Ergonomic Two-Handed Driving Keyboard Layout (`studio/viewer.js`)**
   - Update keyboard bindings in `viewer.js`:
     - `W` / `PageUp`: Move forward (`goToStep(currentIndex + 1)`).
     - `S` / `PageDown`: Move backward (`goToStep(currentIndex - 1)`).

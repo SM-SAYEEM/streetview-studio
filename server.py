@@ -234,6 +234,9 @@ class StudioHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def log_message(self, format, *args):
+        pass
+
     def trim_tour(self, payload, side):
         if download_status["active"]:
             return self.send_json({"ok": False, "error": "A download or processing operation is currently running."}, 409)
@@ -551,9 +554,6 @@ class StudioHandler(SimpleHTTPRequestHandler):
                 shutil.rmtree(t_path)
                 return self.send_json({"ok": True})
             self.send_json({"ok": False, "error": "Tour folder not found."}, 404)
-
-        def log_message(self, format, *args):
-            pass # টার্মিনাল পরিষ্কার রাখার জন্য অপ্রয়োজনীয় লগ বন্ধ রাখা হলো
 
 if __name__ == "__main__":
     print(f"StreetView Studio v2.0 running at http://localhost:{PORT}")

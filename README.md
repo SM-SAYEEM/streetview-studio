@@ -64,10 +64,11 @@ If you are unsure how to set this up on your specific device (Windows, Mac, Linu
 
 | Key | Action |
 | :--- | :--- |
-| `Up Arrow` / `W` | Move forward along the road |
-| `Down Arrow` / `S` | Move backward |
-| `Left Arrow` / `A` | Steer camera view left |
-| `Right Arrow` / `D` | Steer camera view right |
+| `W` / `PageUp` | Move forward along the road |
+| `S` / `PageDown` | Move backward along the road |
+| `A` / `D` or `Left Arrow` / `Right Arrow` | Steer camera view left / right |
+| `Up Arrow` / `Down Arrow` | Tilt camera view up / down |
+| `Home` / `End` | Jump to the first / last panorama |
 | `Spacebar` | Play / Pause Autopilot mode |
 | `F` | Toggle Fullscreen |
 
